@@ -568,6 +568,8 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
     .doc tbody td:last-child { white-space: normal; min-width: 18rem; }
 
     .doc .comparison-table-wrap {
+      display: inline-block;
+      max-width: 100%;
       overflow-x: auto;
       border: 1px solid #e5e7eb;
       border-radius: 0.5rem;
@@ -578,7 +580,8 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
       display: table;
       table-layout: fixed;
       min-width: 42.5rem;
-      width: 100%;
+      width: 42.5rem;
+      max-width: 42.5rem;
       border: 0;
       border-radius: 0;
       margin-bottom: 0;
