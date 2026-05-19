@@ -567,6 +567,95 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
     .doc tbody td { padding: 0.625rem 1rem; vertical-align: top; }
     .doc tbody td:last-child { white-space: normal; min-width: 18rem; }
 
+    .doc .comparison-table-wrap {
+      overflow-x: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+      background: #ffffff;
+    }
+    .doc .comparison-table {
+      display: table;
+      min-width: 44rem;
+      width: 100%;
+      border: 0;
+      border-radius: 0;
+      margin-bottom: 0;
+      overflow: visible;
+      white-space: normal;
+    }
+    .doc .comparison-table thead { background-color: #f9fafb; }
+    .doc .comparison-table th,
+    .doc .comparison-table td {
+      padding: 0.625rem 0.875rem;
+      text-align: center;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .doc .comparison-table th:first-child,
+    .doc .comparison-table td:first-child {
+      text-align: left;
+      white-space: normal;
+      min-width: 16rem;
+    }
+    .doc .comparison-table tbody th {
+      color: #374151;
+      font-weight: 600;
+    }
+    .doc .comparison-table tbody td {
+      font-size: 1rem;
+    }
+    .doc .comparison-table tbody td:last-child {
+      min-width: 0;
+      white-space: nowrap;
+    }
+    .doc .info-tip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1rem;
+      height: 1rem;
+      margin-left: 0.25rem;
+      border: 1px solid #d1d5db;
+      border-radius: 9999px;
+      color: #6b7280;
+      font-size: 0.625rem;
+      font-weight: 700;
+      line-height: 1;
+      cursor: help;
+    }
+    .doc .info-tip:focus {
+      outline: 2px solid #9ca3af;
+      outline-offset: 2px;
+    }
+    .doc .info-tip > span {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 0.5rem);
+      z-index: 20;
+      width: min(16rem, calc(100vw - 2rem));
+      transform: translateX(-50%);
+      border: 1px solid #e5e7eb;
+      border-radius: 0.375rem;
+      background: #111827;
+      color: #f9fafb;
+      padding: 0.625rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 400;
+      line-height: 1.45;
+      text-align: left;
+      white-space: normal;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease-out;
+      box-shadow: 0 10px 24px rgba(17, 24, 39, 0.16);
+    }
+    .doc .info-tip:hover > span,
+    .doc .info-tip:focus > span {
+      opacity: 1;
+    }
+
     /* Blockquote rendered as a callout note */
     .doc blockquote {
       background: #ffffff;

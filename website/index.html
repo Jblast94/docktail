@@ -97,6 +97,55 @@
       animation: flowDown 1.8s ease-in-out infinite;
     }
 
+    .info-tip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1rem;
+      height: 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 9999px;
+      color: #6b7280;
+      font-size: 0.625rem;
+      font-weight: 700;
+      line-height: 1;
+      cursor: help;
+    }
+
+    .info-tip:focus {
+      outline: 2px solid #9ca3af;
+      outline-offset: 2px;
+    }
+
+    .info-tip > span {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 0.5rem);
+      z-index: 20;
+      width: min(16rem, calc(100vw - 2rem));
+      transform: translateX(-50%);
+      border: 1px solid #e5e7eb;
+      border-radius: 0.375rem;
+      background: #111827;
+      color: #f9fafb;
+      padding: 0.625rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 400;
+      line-height: 1.45;
+      text-align: left;
+      white-space: normal;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease-out;
+      box-shadow: 0 10px 24px rgba(17, 24, 39, 0.16);
+    }
+
+    .info-tip:hover > span,
+    .info-tip:focus > span {
+      opacity: 1;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .anim-line, .anim-glow, .anim-panel {
         opacity: 1 !important;
@@ -125,8 +174,11 @@
       <h1 id="hero-title" class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-gray-900 mb-4">
         Unleash your Containers<br class="hidden sm:block"> as Tailscale Services
       </h1>
-      <p class="text-base sm:text-lg text-gray-500 mb-8">
+      <p class="text-base sm:text-lg text-gray-500 mb-3">
         Add labels to your Docker containers. DockTail handles the rest.
+      </p>
+      <p class="text-sm sm:text-base text-gray-600 mb-8">
+        Uses native Tailscale Services, not per-container Tailscale devices.
       </p>
       <div class="flex items-center justify-center gap-3">
         <a href="/docs/#quick-start"
@@ -215,6 +267,86 @@
           </div>
 
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison -->
+  <section aria-labelledby="comparison-title" class="border-t border-gray-200 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div class="max-w-3xl mb-8">
+        <h2 id="comparison-title" class="text-xs uppercase tracking-wider text-gray-400 mb-3">DockTail vs alternatives</h2>
+        <p class="text-sm text-gray-500 leading-relaxed">
+          DockTail gives Docker containers the native Tailscale Services model without turning each app into another Tailscale device.
+        </p>
+      </div>
+
+      <div class="overflow-x-auto border border-gray-200 rounded-lg">
+        <table class="min-w-[760px] w-full bg-white text-sm">
+          <thead class="bg-gray-50 text-gray-900">
+            <tr class="border-b border-gray-200">
+              <th scope="col" class="px-4 py-3 text-left font-semibold">Feature</th>
+              <th scope="col" class="px-4 py-3 text-center font-semibold">DockTail</th>
+              <th scope="col" class="px-4 py-3 text-center font-semibold">TSDProxy</th>
+              <th scope="col" class="px-4 py-3 text-center font-semibold">ScaleTail</th>
+              <th scope="col" class="px-4 py-3 text-center font-semibold">tsbridge</th>
+              <th scope="col" class="px-4 py-3 text-center font-semibold">Plain Services</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 text-gray-600">
+            <tr>
+              <th scope="row" class="px-4 py-3 text-left font-medium text-gray-800">Native Tailscale Services</th>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-4 py-3 text-left font-medium text-gray-800">Configured via Docker labels</th>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-4 py-3 text-left font-medium text-gray-800">
+                Apps do not consume separate Tailscale device slots
+                <span class="info-tip ml-1" tabindex="0" aria-label="DockTail advertises apps as services from one tagged host instead of creating a separate Tailscale device identity per app. Exact plan limits depend on Tailscale.">i<span role="tooltip">DockTail advertises apps as services from one tagged host instead of creating a separate Tailscale device identity per app. Exact plan limits depend on Tailscale.</span></span>
+              </th>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-4 py-3 text-left font-medium text-gray-800">No app port publishing</th>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Depends on proxy or network setup">⚠️ <span class="info-tip ml-1 align-middle" tabindex="0" aria-label="Depends on proxy and Docker network setup.">i<span role="tooltip">Depends on proxy and Docker network setup.</span></span></td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Depends on sidecar setup">⚠️ <span class="info-tip ml-1 align-middle" tabindex="0" aria-label="Depends on the sidecar template and app network setup.">i<span role="tooltip">Depends on the sidecar template and app network setup.</span></span></td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Depends on proxy or network setup">⚠️ <span class="info-tip ml-1 align-middle" tabindex="0" aria-label="Depends on proxy and Docker network setup.">i<span role="tooltip">Depends on proxy and Docker network setup.</span></span></td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Manual backend setup required">⚠️ <span class="info-tip ml-1 align-middle" tabindex="0" aria-label="You configure how the service host reaches the backend yourself.">i<span role="tooltip">You configure how the service host reaches the backend yourself.</span></span></td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-4 py-3 text-left font-medium text-gray-800">Automatic Docker reconciliation</th>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-4 py-3 text-left font-medium text-gray-800">Low manual setup after install</th>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Template setup per app">⚠️ <span class="info-tip ml-1 align-middle" tabindex="0" aria-label="ScaleTail is template-based, so each app usually starts from its own Compose recipe.">i<span role="tooltip">ScaleTail is template-based, so each app usually starts from its own Compose recipe.</span></span></td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="Yes">✅</td>
+              <td class="px-4 py-3 text-center text-lg" aria-label="No">❌</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
