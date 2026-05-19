@@ -9,12 +9,12 @@ DockTail uses native Tailscale Services, not per-container Tailscale devices.
 <div class="comparison-table-wrap">
   <table class="comparison-table">
     <colgroup>
-      <col style="width: 14.375rem">
-      <col style="width: 5.625rem">
-      <col style="width: 5.625rem">
-      <col style="width: 5.625rem">
-      <col style="width: 5.625rem">
-      <col style="width: 5.625rem">
+      <col>
+      <col>
+      <col>
+      <col>
+      <col>
+      <col>
     </colgroup>
     <thead>
       <tr>
