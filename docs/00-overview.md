@@ -8,9 +8,17 @@ DockTail uses native Tailscale Services, not per-container Tailscale devices.
 
 <div class="comparison-table-wrap">
   <table class="comparison-table">
+    <colgroup>
+      <col>
+      <col>
+      <col>
+      <col>
+      <col>
+      <col>
+    </colgroup>
     <thead>
       <tr>
-        <th scope="col">Feature</th>
+        <th scope="col" aria-label="Feature"></th>
         <th scope="col">DockTail</th>
         <th scope="col">TSDProxy</th>
         <th scope="col">ScaleTail</th>
@@ -21,54 +29,54 @@ DockTail uses native Tailscale Services, not per-container Tailscale devices.
     <tbody>
       <tr>
         <th scope="row">Native Tailscale Services</th>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="No">❌</td>
-        <td aria-label="No">❌</td>
-        <td aria-label="No">❌</td>
-        <td aria-label="Yes">✅</td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
       </tr>
       <tr>
         <th scope="row">Configured via Docker labels</th>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="No">❌</td>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="No">❌</td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
       </tr>
       <tr>
         <th scope="row">
           Apps do not consume separate Tailscale device slots
           <span class="info-tip" tabindex="0" aria-label="DockTail advertises apps as services from one tagged host instead of creating a separate Tailscale device identity per app. Exact plan limits depend on Tailscale.">i<span role="tooltip">DockTail advertises apps as services from one tagged host instead of creating a separate Tailscale device identity per app. Exact plan limits depend on Tailscale.</span></span>
         </th>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="No">❌</td>
-        <td aria-label="No">❌</td>
-        <td aria-label="No">❌</td>
-        <td aria-label="Yes">✅</td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
       </tr>
       <tr>
         <th scope="row">No app port publishing</th>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="Depends on proxy or network setup">⚠️ <span class="info-tip" tabindex="0" aria-label="Depends on proxy and Docker network setup.">i<span role="tooltip">Depends on proxy and Docker network setup.</span></span></td>
-        <td aria-label="Depends on sidecar setup">⚠️ <span class="info-tip" tabindex="0" aria-label="Depends on the sidecar template and app network setup.">i<span role="tooltip">Depends on the sidecar template and app network setup.</span></span></td>
-        <td aria-label="Depends on proxy or network setup">⚠️ <span class="info-tip" tabindex="0" aria-label="Depends on proxy and Docker network setup.">i<span role="tooltip">Depends on proxy and Docker network setup.</span></span></td>
-        <td aria-label="Manual backend setup required">⚠️ <span class="info-tip" tabindex="0" aria-label="You configure how the service host reaches the backend yourself.">i<span role="tooltip">You configure how the service host reaches the backend yourself.</span></span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="Depends on proxy or network setup"><span class="status-mark">⚠️</span><span class="info-tip" tabindex="0" aria-label="Depends on proxy and Docker network setup.">i<span role="tooltip">Depends on proxy and Docker network setup.</span></span></td>
+        <td aria-label="Depends on sidecar setup"><span class="status-mark">⚠️</span><span class="info-tip" tabindex="0" aria-label="Depends on the sidecar template and app network setup.">i<span role="tooltip">Depends on the sidecar template and app network setup.</span></span></td>
+        <td aria-label="Depends on proxy or network setup"><span class="status-mark">⚠️</span><span class="info-tip" tabindex="0" aria-label="Depends on proxy and Docker network setup.">i<span role="tooltip">Depends on proxy and Docker network setup.</span></span></td>
+        <td aria-label="Manual backend setup required"><span class="status-mark">⚠️</span><span class="info-tip" tabindex="0" aria-label="You configure how the service host reaches the backend yourself.">i<span role="tooltip">You configure how the service host reaches the backend yourself.</span></span></td>
       </tr>
       <tr>
         <th scope="row">Automatic Docker reconciliation</th>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="No">❌</td>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="No">❌</td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
       </tr>
       <tr>
         <th scope="row">Low manual setup after install</th>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="Template setup per app">⚠️ <span class="info-tip" tabindex="0" aria-label="ScaleTail is template-based, so each app usually starts from its own Compose recipe.">i<span role="tooltip">ScaleTail is template-based, so each app usually starts from its own Compose recipe.</span></span></td>
-        <td aria-label="Yes">✅</td>
-        <td aria-label="No">❌</td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="Template setup per app"><span class="status-mark">⚠️</span><span class="info-tip" tabindex="0" aria-label="ScaleTail is template-based, so each app usually starts from its own Compose recipe.">i<span role="tooltip">ScaleTail is template-based, so each app usually starts from its own Compose recipe.</span></span></td>
+        <td aria-label="Yes"><span class="status-mark">✅</span></td>
+        <td aria-label="No"><span class="status-mark">❌</span></td>
       </tr>
     </tbody>
   </table>

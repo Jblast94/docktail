@@ -8,6 +8,24 @@
 
 DockTail watches Docker containers, reads `docktail.*` labels, and exposes matching containers as Tailscale Services. App containers do not need published Docker ports by default; DockTail proxies directly to their Docker network IPs.
 
+## Why DockTail?
+
+DockTail uses native Tailscale Services, not per-container Tailscale devices.
+
+| | DockTail | TSDProxy | ScaleTail | tsbridge | Plain Services |
+|---|---:|---:|---:|---:|---:|
+| Native Tailscale Services | ✅ | ❌ | ❌ | ❌ | ✅ |
+| Configured via Docker labels | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Apps do not consume separate Tailscale device slots | ✅ | ❌ | ❌ | ❌ | ✅ |
+| No app port publishing | ✅ | ⚠️¹ | ⚠️² | ⚠️¹ | ⚠️³ |
+| Automatic Docker reconciliation | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Low manual setup after install | ✅ | ✅ | ⚠️⁴ | ✅ | ❌ |
+
+- ¹ Depends on proxy and Docker network setup.
+- ² Depends on the sidecar template and app network setup.
+- ³ You configure how the service host reaches the backend yourself.
+- ⁴ ScaleTail is template-based, so each app usually starts from its own Compose recipe.
+
 ## Features
 
 - Automatic Docker container discovery through labels.

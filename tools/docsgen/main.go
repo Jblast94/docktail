@@ -576,7 +576,8 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
     }
     .doc .comparison-table {
       display: table;
-      min-width: 44rem;
+      table-layout: fixed;
+      min-width: 42.5rem;
       width: 100%;
       border: 0;
       border-radius: 0;
@@ -596,8 +597,10 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
     .doc .comparison-table td:first-child {
       text-align: left;
       white-space: normal;
-      min-width: 16rem;
+      width: 14.375rem;
     }
+    .doc .comparison-table col:first-child { width: 14.375rem; }
+    .doc .comparison-table col:not(:first-child) { width: 5.625rem; }
     .doc .comparison-table tbody th {
       color: #374151;
       font-weight: 600;
@@ -608,6 +611,15 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
     .doc .comparison-table tbody td:last-child {
       min-width: 0;
       white-space: nowrap;
+    }
+    .doc .comparison-table tbody td {
+      position: relative;
+      text-align: center;
+    }
+    .doc .comparison-table .status-mark {
+      display: inline-block;
+      min-width: 1.5rem;
+      text-align: center;
     }
     .doc .info-tip {
       position: relative;
@@ -624,6 +636,12 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
       font-weight: 700;
       line-height: 1;
       cursor: help;
+    }
+    .doc .comparison-table tbody td .info-tip {
+      position: absolute;
+      left: calc(50% + 1.35rem);
+      top: 50%;
+      transform: translateY(-50%);
     }
     .doc .info-tip:focus {
       outline: 2px solid #9ca3af;
