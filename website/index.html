@@ -119,12 +119,13 @@
     }
 
     .info-tip > span {
-      position: absolute;
-      left: 50%;
-      bottom: calc(100% + 0.5rem);
-      z-index: 20;
+      display: none;
+    }
+
+    .tooltip-portal {
+      position: fixed;
+      z-index: 100;
       width: min(16rem, calc(100vw - 2rem));
-      transform: translateX(-50%);
       border: 1px solid #e5e7eb;
       border-radius: 0.375rem;
       background: #111827;
@@ -141,8 +142,7 @@
       box-shadow: 0 10px 24px rgba(17, 24, 39, 0.16);
     }
 
-    .info-tip:hover > span,
-    .info-tip:focus > span {
+    .tooltip-portal.is-visible {
       opacity: 1;
     }
 
@@ -482,7 +482,54 @@
     </div>
   </footer>
 
+  <div id="tooltip-portal" class="tooltip-portal" role="tooltip" hidden></div>
+
   <script>
+    (function() {
+      var tooltip = document.getElementById('tooltip-portal');
+      if (!tooltip) return;
+
+      function positionTooltip(trigger) {
+        var margin = 8;
+        var triggerRect = trigger.getBoundingClientRect();
+        tooltip.hidden = false;
+        tooltip.classList.add('is-visible');
+
+        var tooltipRect = tooltip.getBoundingClientRect();
+        var left = triggerRect.left + (triggerRect.width / 2) - (tooltipRect.width / 2);
+        left = Math.max(margin, Math.min(left, window.innerWidth - tooltipRect.width - margin));
+
+        var top = triggerRect.top - tooltipRect.height - margin;
+        if (top < margin) top = triggerRect.bottom + margin;
+
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+      }
+
+      function showTooltip(event) {
+        var trigger = event.currentTarget;
+        var text = trigger.getAttribute('data-tooltip') || trigger.getAttribute('aria-label');
+        if (!text) return;
+        tooltip.textContent = text;
+        positionTooltip(trigger);
+      }
+
+      function hideTooltip() {
+        tooltip.classList.remove('is-visible');
+        tooltip.hidden = true;
+      }
+
+      document.querySelectorAll('.info-tip').forEach(function(trigger) {
+        trigger.addEventListener('mouseenter', showTooltip);
+        trigger.addEventListener('focus', showTooltip);
+        trigger.addEventListener('mouseleave', hideTooltip);
+        trigger.addEventListener('blur', hideTooltip);
+      });
+
+      window.addEventListener('scroll', hideTooltip, { passive: true });
+      window.addEventListener('resize', hideTooltip);
+    })();
+
     (function() {
       var KEY = 'docktail_stars', TTL = 3600000;
       var cached = localStorage.getItem(KEY);

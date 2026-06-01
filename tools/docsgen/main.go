@@ -648,12 +648,12 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
       outline-offset: 2px;
     }
     .doc .info-tip > span {
-      position: absolute;
-      left: 50%;
-      bottom: calc(100% + 0.5rem);
-      z-index: 20;
+      display: none;
+    }
+    .tooltip-portal {
+      position: fixed;
+      z-index: 100;
       width: min(16rem, calc(100vw - 2rem));
-      transform: translateX(-50%);
       border: 1px solid #e5e7eb;
       border-radius: 0.375rem;
       background: #111827;
@@ -669,8 +669,7 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
       transition: opacity 0.15s ease-out;
       box-shadow: 0 10px 24px rgba(17, 24, 39, 0.16);
     }
-    .doc .info-tip:hover > span,
-    .doc .info-tip:focus > span {
+    .tooltip-portal.is-visible {
       opacity: 1;
     }
 
@@ -763,10 +762,60 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
   <!-- Mobile sidebar overlay -->
   <div id="sidebar-overlay" class="hidden fixed inset-0 z-40 bg-black/20 lg:hidden"></div>
   <div id="sidebar-mobile" class="hidden fixed top-14 left-0 z-40 w-64 bg-white border-r border-gray-200 h-[calc(100vh-3.5rem)] overflow-y-auto py-6 px-2 lg:hidden"></div>
+  <div id="tooltip-portal" class="tooltip-portal" role="tooltip" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
   <script>
+    const tooltip = document.getElementById('tooltip-portal');
+
+    function positionTooltip(trigger) {
+      if (!tooltip) return;
+
+      const margin = 8;
+      const triggerRect = trigger.getBoundingClientRect();
+      tooltip.hidden = false;
+      tooltip.classList.add('is-visible');
+
+      const tooltipRect = tooltip.getBoundingClientRect();
+      let left = triggerRect.left + (triggerRect.width / 2) - (tooltipRect.width / 2);
+      left = Math.max(margin, Math.min(left, window.innerWidth - tooltipRect.width - margin));
+
+      let top = triggerRect.top - tooltipRect.height - margin;
+      if (top < margin) top = triggerRect.bottom + margin;
+
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+    }
+
+    function showTooltip(event) {
+      if (!tooltip) return;
+
+      const trigger = event.currentTarget;
+      const text = trigger.getAttribute('data-tooltip') || trigger.getAttribute('aria-label');
+      if (!text) return;
+
+      tooltip.textContent = text;
+      positionTooltip(trigger);
+    }
+
+    function hideTooltip() {
+      if (!tooltip) return;
+
+      tooltip.classList.remove('is-visible');
+      tooltip.hidden = true;
+    }
+
+    document.querySelectorAll('.info-tip').forEach(trigger => {
+      trigger.addEventListener('mouseenter', showTooltip);
+      trigger.addEventListener('focus', showTooltip);
+      trigger.addEventListener('mouseleave', hideTooltip);
+      trigger.addEventListener('blur', hideTooltip);
+    });
+
+    window.addEventListener('scroll', hideTooltip, { passive: true });
+    window.addEventListener('resize', hideTooltip);
+
     // Wrap each <pre> in a .code-block container with a copy button.
     document.querySelectorAll('.doc pre').forEach(pre => {
       const wrapper = document.createElement('div');
