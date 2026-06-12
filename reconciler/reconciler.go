@@ -5,17 +5,53 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/docker/docker/api/types/events"
 	"github.com/rs/zerolog/log"
 
 	"github.com/marvinvr/docktail/docker"
 	"github.com/marvinvr/docktail/tailscale"
+	apptypes "github.com/marvinvr/docktail/types"
 )
+
+// Observer receives reconciler outputs for an optional side-channel consumer —
+// the cloud module (see ../cloud). The reconciler calls these inline, so an
+// implementation must return quickly (hand off to its own goroutines/queues).
+// The reconciler itself never imports the cloud package; this keeps the AGPL
+// agent free of any dependency on the cloud's wiring.
+type Observer interface {
+	// OnReconcile is called after each successful reconcile with the freshly
+	// computed services (the same value the reconciler just applied).
+	OnReconcile(ctx context.Context, services []*apptypes.ContainerService)
+	// OnEvent is called for every docker container event the reconciler observes
+	// (the widened set: start/stop/die/restart/oom/health_status).
+	OnEvent(ctx context.Context, event events.Message)
+}
 
 // Reconciler manages the reconciliation loop
 type Reconciler struct {
 	dockerClient    *docker.Client
 	tailscaleClient *tailscale.Client
 	interval        time.Duration
+	observer        Observer // optional; nil unless the cloud module is enabled
+}
+
+// SetObserver attaches an optional observer (the cloud collector). Pass nil to
+// detach. Safe to call once before Run.
+func (r *Reconciler) SetObserver(o Observer) {
+	r.observer = o
+}
+
+// triggersReconcile reports whether a docker event action should drive a
+// tailscale reconcile. The cloud module observes the wider event set, but only
+// these actions change desired service state — health_status/oom must not cause
+// reconcile storms.
+func triggersReconcile(a events.Action) bool {
+	switch a {
+	case events.ActionStart, events.ActionStop, events.ActionDie, events.ActionRestart:
+		return true
+	default:
+		return false
+	}
 }
 
 // NewReconciler creates a new reconciler
@@ -60,9 +96,16 @@ func (r *Reconciler) Run(ctx context.Context) error {
 				Str("container", event.Actor.ID[:12]).
 				Msg("Docker event received")
 
-			// Trigger reconciliation on relevant events
-			if err := r.Reconcile(ctx); err != nil {
-				log.Error().Err(err).Msg("Event-triggered reconciliation failed")
+			// Forward every observed event to the cloud module (if attached).
+			if r.observer != nil {
+				r.observer.OnEvent(ctx, event)
+			}
+
+			// Trigger reconciliation only on events that change desired state.
+			if triggersReconcile(event.Action) {
+				if err := r.Reconcile(ctx); err != nil {
+					log.Error().Err(err).Msg("Event-triggered reconciliation failed")
+				}
 			}
 
 		case <-ticker.C:
@@ -119,6 +162,13 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 	// then cleared (configuration removed) for security
 	if err := r.tailscaleClient.ReconcileServices(ctx, containers); err != nil {
 		return fmt.Errorf("failed to reconcile services: %w", err)
+	}
+
+	// Hand the freshly computed services to the cloud module (if attached). This
+	// is the "subscribe to reconciler results" path — the cloud never re-derives
+	// discovery.
+	if r.observer != nil {
+		r.observer.OnReconcile(ctx, containers)
 	}
 
 	log.Info().Msg("Reconciliation completed successfully")

@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docktail.org/schema/agent-protocol-v1.json",
+  "title": "DockTail agent protocol (v1)",
+  "description": "What the DockTail agent sends to DockTail Cloud. Metadata only: there are no exec, deploy, or shell message types, by design. Every frame is an Envelope carrying a typed payload.",
+  "type": "object",
+  "$defs": {
+    "Envelope": {
+      "type": "object",
+      "required": ["type", "ts", "payload"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["hello", "snapshot", "event", "check_results", "log_excerpt", "heartbeat", "hello_ack", "config"]
+        },
+        "ts": { "type": "integer", "description": "unix milliseconds" },
+        "payload": { "type": "object" }
+      }
+    },
+    "Hello": {
+      "type": "object",
+      "required": ["protocol_version", "fingerprint"],
+      "properties": {
+        "protocol_version": { "type": "integer" },
+        "fingerprint": { "type": "string", "description": "docker engine ID; the host identity and billable unit" },
+        "tailscale_node_id": { "type": "string" },
+        "hostname": { "type": "string", "description": "display-only" },
+        "agent_version": { "type": "string" },
+        "docker_version": { "type": "string" },
+        "tailscale_version": { "type": "string" },
+        "capabilities": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Snapshot": {
+      "type": "object",
+      "required": ["services"],
+      "properties": {
+        "services": { "type": "array", "items": { "$ref": "#/$defs/Service" } },
+        "full": { "type": "boolean" }
+      }
+    },
+    "Service": {
+      "type": "object",
+      "required": ["key", "state"],
+      "properties": {
+        "key": { "type": "string" },
+        "service_name": { "type": "string" },
+        "container_id": { "type": "string" },
+        "container_name": { "type": "string" },
+        "image": { "type": "string" },
+        "image_tag": { "type": "string" },
+        "compose_project": { "type": "string" },
+        "compose_service": { "type": "string" },
+        "fqdn": { "type": "string" },
+        "ip_address": { "type": "string" },
+        "port": { "type": "string" },
+        "target_port": { "type": "string" },
+        "service_protocol": { "type": "string" },
+        "protocol": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "networks": { "type": "array", "items": { "type": "string" } },
+        "funnel_enabled": { "type": "boolean" },
+        "funnel_port": { "type": "string" },
+        "funnel_protocol": { "type": "string" },
+        "funnel_path": { "type": "string" },
+        "state": { "type": "string" },
+        "docker_health": { "type": "string" },
+        "restart_count": { "type": "integer" },
+        "cpu_percent": { "type": "number", "description": "live container CPU usage as % of all host cores" },
+        "mem_usage_bytes": { "type": "integer", "description": "live working-set memory (usage minus inactive file cache)" },
+        "mem_limit_bytes": { "type": "integer", "description": "effective memory limit (container limit, else host total)" }
+      }
+    },
+    "Event": {
+      "type": "object",
+      "required": ["kind", "container_id", "occurred_at"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["die", "oom", "health_status", "restart_loop", "start", "stop"] },
+        "service_key": { "type": "string" },
+        "container_id": { "type": "string" },
+        "container_name": { "type": "string" },
+        "exit_code": { "type": "integer" },
+        "restart_count": { "type": "integer" },
+        "health_status": { "type": "string" },
+        "message": { "type": "string" },
+        "occurred_at": { "type": "integer" }
+      }
+    },
+    "CheckResults": {
+      "type": "object",
+      "required": ["results"],
+      "properties": {
+        "results": { "type": "array", "items": { "$ref": "#/$defs/CheckResult" } }
+      }
+    },
+    "CheckResult": {
+      "type": "object",
+      "required": ["service_key", "vantage", "kind", "ok", "checked_at"],
+      "properties": {
+        "service_key": { "type": "string" },
+        "vantage": { "type": "string", "enum": ["local", "tailnet", "public"] },
+        "kind": { "type": "string", "enum": ["tcp", "http"] },
+        "ok": { "type": "boolean" },
+        "latency_ms": { "type": "integer" },
+        "status_code": { "type": "integer" },
+        "class": { "type": "string", "enum": ["dns", "timeout", "refused", "tls", "http_5xx", "acl_blocked", "container"] },
+        "error": { "type": "string" },
+        "checked_at": { "type": "integer" }
+      }
+    },
+    "LogExcerpt": {
+      "type": "object",
+      "required": ["service_key", "container_id", "lines", "captured_at"],
+      "properties": {
+        "service_key": { "type": "string" },
+        "container_id": { "type": "string" },
+        "lines": { "type": "array", "items": { "type": "string" }, "maxItems": 40 },
+        "byte_size": { "type": "integer", "maximum": 8192 },
+        "captured_at": { "type": "integer" }
+      }
+    },
+    "Heartbeat": {
+      "type": "object",
+      "properties": { "uptime_seconds": { "type": "integer" } }
+    },
+    "HelloAck": {
+      "type": "object",
+      "required": ["accepted"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "host_id": { "type": "string" },
+        "reason": { "type": "string", "enum": ["invalid_key", "blocked", "duplicate_identity", "protocol_mismatch", "over_cap"] },
+        "config_version": { "type": "integer" },
+        "server_time": { "type": "integer" }
+      }
+    },
+    "Config": {
+      "type": "object",
+      "required": ["version"],
+      "properties": {
+        "version": { "type": "integer" },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/CheckConfig" } },
+        "logs": { "$ref": "#/$defs/LogConfig" },
+        "unmonitored": { "type": "boolean" },
+        "log_opt_in": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "LogConfig": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["incident", "off", "continuous"] },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "enum": ["incident", "off", "continuous"] }
+        }
+      }
+    },
+    "CheckConfig": {
+      "type": "object",
+      "required": ["service_key", "kind"],
+      "properties": {
+        "service_key": { "type": "string" },
+        "kind": { "type": "string", "enum": ["tcp", "http"] },
+        "target": { "type": "string" },
+        "path": { "type": "string" },
+        "expect_status": { "type": "integer" },
+        "interval_ms": { "type": "integer" }
+      }
+    }
+  }
+}

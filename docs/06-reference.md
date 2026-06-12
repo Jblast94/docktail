@@ -31,6 +31,16 @@ Supported file-backed credential variables:
 
 `IGNORE_SERVICE_NAMES` accepts bare names like `grafana` and fully qualified names like `svc:grafana`.
 
+#### DockTail Cloud (optional)
+
+These variables enable optional DockTail Cloud reporting. They are opt-in: the agent is completely inert unless `DOCKTAIL_CLOUD_KEY` is set. See [DockTail Cloud](#docktail-cloud).
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DOCKTAIL_CLOUD_KEY` | - | Workspace key (`dtc_...`) from the cloud dashboard. Enables reporting. Inert when unset. |
+| `DOCKTAIL_LOG_LEVEL` | `info` | Log level for the cloud module: `debug`, `info`, `warn`, or `error`. |
+| `DOCKTAIL_CHECK_INTERVAL` | `30s` | How often local-vantage checks run. |
+
 ### Supported Protocols
 
 Tailscale-facing `docktail.service.service-protocol` values:

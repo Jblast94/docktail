@@ -67,6 +67,11 @@ func (c *Client) WatchEvents(ctx context.Context) (<-chan events.Message, <-chan
 			filters.Arg("event", "stop"),
 			filters.Arg("event", "die"),
 			filters.Arg("event", "restart"),
+			// Widened for the optional cloud module's failure signals. These do
+			// not trigger a tailscale reconcile (see reconciler.triggersReconcile),
+			// they are only forwarded to the cloud observer.
+			filters.Arg("event", "oom"),
+			filters.Arg("event", "health_status"),
 		),
 	})
 
