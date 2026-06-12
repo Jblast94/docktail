@@ -240,7 +240,7 @@ func (c *Collector) pruneStats(present map[string]struct{}) {
 // vantage and FQDN.
 func toService(cs *apptypes.ContainerService, info docker.CloudInfo, stats containerStats) proto.Service {
 	svc := proto.Service{
-		Key:            serviceKey(cs.ServiceName, cs.ContainerName),
+		Key:            serviceKeyForContainerService(cs),
 		ServiceName:    cs.ServiceName,
 		ContainerID:    cs.ContainerID,
 		ContainerName:  cs.ContainerName,
@@ -271,9 +271,19 @@ func toService(cs *apptypes.ContainerService, info docker.CloudInfo, stats conta
 	return svc
 }
 
-func serviceKey(serviceName, containerName string) string {
-	if strings.TrimSpace(serviceName) != "" {
+func serviceKeyForContainerService(cs *apptypes.ContainerService) string {
+	serviceName := strings.TrimSpace(cs.ServiceName)
+	if serviceName != "" {
+		if port := strings.TrimSpace(cs.Port); port != "" {
+			return serviceName + ":" + port
+		}
 		return serviceName
+	}
+	containerName := strings.TrimSpace(cs.ContainerName)
+	if cs.FunnelEnabled {
+		if port := strings.TrimSpace(firstNonEmpty(cs.FunnelFunnelPort, cs.FunnelPort)); port != "" {
+			return containerName + ":funnel:" + port
+		}
 	}
 	return containerName
 }
@@ -285,58 +295,143 @@ func (c *Collector) mapEvents(ctx context.Context, msg events.Message) []proto.E
 	if attrs == nil {
 		attrs = map[string]string{}
 	}
-	base := proto.Event{
-		ContainerID:   msg.Actor.ID,
-		ContainerName: attrs["name"],
-		ServiceKey:    serviceKeyFromAttrs(attrs),
-		OccurredAt:    eventMillis(msg),
+	bases := c.eventBases(msg, attrs)
+	if len(bases) == 0 {
+		return nil
 	}
 	action := string(msg.Action)
 
 	switch {
 	case msg.Action == events.ActionDie:
-		ev := base
-		ev.Kind = proto.EventDie
-		if code, ok := atoiPtr(attrs["exitCode"]); ok {
-			ev.ExitCode = code
+		out := make([]proto.Event, 0, len(bases)*2)
+		for _, base := range bases {
+			ev := base
+			ev.Kind = proto.EventDie
+			if code, ok := atoiPtr(attrs["exitCode"]); ok {
+				ev.ExitCode = code
+			}
+			out = append(out, ev)
 		}
-		out := []proto.Event{ev}
 		if rc := c.docker.RestartCount(ctx, msg.Actor.ID); rc > restartLoopThreshold {
-			loop := base
-			loop.Kind = proto.EventRestartLoop
-			loop.RestartCount = rc
-			out = append(out, loop)
+			for _, base := range bases {
+				loop := base
+				loop.Kind = proto.EventRestartLoop
+				loop.RestartCount = rc
+				out = append(out, loop)
+			}
 		}
 		return out
 	case msg.Action == events.ActionOOM:
-		ev := base
-		ev.Kind = proto.EventOOM
-		return []proto.Event{ev}
+		return eventsWithKind(bases, proto.EventOOM)
 	case msg.Action == events.ActionStart:
-		ev := base
-		ev.Kind = proto.EventStart
-		return []proto.Event{ev}
+		return eventsWithKind(bases, proto.EventStart)
 	case msg.Action == events.ActionStop || msg.Action == events.ActionRestart:
-		ev := base
-		ev.Kind = proto.EventStop
+		out := eventsWithKind(bases, proto.EventStop)
 		if msg.Action == events.ActionRestart {
-			ev.Message = "restart"
+			for i := range out {
+				out[i].Message = "restart"
+			}
 		}
-		return []proto.Event{ev}
+		return out
 	case strings.HasPrefix(action, "health_status"):
-		ev := base
-		ev.Kind = proto.EventHealthStatus
-		ev.HealthStatus = healthStatusFromEvent(action, attrs)
-		return []proto.Event{ev}
+		out := eventsWithKind(bases, proto.EventHealthStatus)
+		for i := range out {
+			out[i].HealthStatus = healthStatusFromEvent(action, attrs)
+		}
+		return out
 	}
 	return nil
 }
 
+func eventsWithKind(bases []proto.Event, kind proto.EventKind) []proto.Event {
+	out := make([]proto.Event, 0, len(bases))
+	for _, base := range bases {
+		ev := base
+		ev.Kind = kind
+		out = append(out, ev)
+	}
+	return out
+}
+
+func (c *Collector) eventBases(msg events.Message, attrs map[string]string) []proto.Event {
+	keys := c.serviceKeysForEvent(msg, attrs)
+	if len(keys) == 0 {
+		return nil
+	}
+	out := make([]proto.Event, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, proto.Event{
+			ContainerID:   msg.Actor.ID,
+			ContainerName: attrs["name"],
+			ServiceKey:    key,
+			OccurredAt:    eventMillis(msg),
+		})
+	}
+	return out
+}
+
+func (c *Collector) serviceKeysForEvent(msg events.Message, attrs map[string]string) []string {
+	c.mu.RLock()
+	latest := c.latest
+	c.mu.RUnlock()
+
+	var keys []string
+	seen := map[string]struct{}{}
+	for _, svc := range latest {
+		if !sameContainer(msg.Actor.ID, attrs["name"], svc.ContainerID, svc.ContainerName) {
+			continue
+		}
+		if strings.TrimSpace(svc.Key) == "" {
+			continue
+		}
+		if _, ok := seen[svc.Key]; ok {
+			continue
+		}
+		seen[svc.Key] = struct{}{}
+		keys = append(keys, svc.Key)
+	}
+	if len(keys) > 0 {
+		return keys
+	}
+
+	if key := serviceKeyFromAttrs(attrs); key != "" {
+		return []string{key}
+	}
+	return nil
+}
+
+func sameContainer(eventID, eventName, serviceID, serviceName string) bool {
+	eventID = strings.TrimSpace(eventID)
+	serviceID = strings.TrimSpace(serviceID)
+	if eventID != "" && serviceID != "" && (strings.HasPrefix(eventID, serviceID) || strings.HasPrefix(serviceID, eventID)) {
+		return true
+	}
+	eventName = strings.TrimPrefix(strings.TrimSpace(eventName), "/")
+	serviceName = strings.TrimPrefix(strings.TrimSpace(serviceName), "/")
+	return eventName != "" && serviceName != "" && eventName == serviceName
+}
+
 func serviceKeyFromAttrs(attrs map[string]string) string {
 	if sn := strings.TrimSpace(attrs[apptypes.LabelService]); sn != "" {
+		if port := servicePortFromAttrs(attrs); port != "" {
+			return sn + ":" + port
+		}
 		return sn
 	}
 	return attrs["name"]
+}
+
+func servicePortFromAttrs(attrs map[string]string) string {
+	if port := strings.TrimSpace(attrs[apptypes.LabelPort]); port != "" {
+		return port
+	}
+	if strings.TrimSpace(attrs[apptypes.LabelTarget]) == "" {
+		return ""
+	}
+	if strings.TrimSpace(attrs[apptypes.LabelServiceProtocol]) == "https" {
+		return "443"
+	}
+	return "80"
 }
 
 func healthStatusFromEvent(action string, attrs map[string]string) string {

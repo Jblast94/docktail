@@ -7,9 +7,8 @@ import (
 )
 
 // captureLogs reads the last lines of a container's logs and returns a capped
-// excerpt. Callers gate this on opt-in: the service key must be present in the
-// cloud config's log_opt_in set (pushed via the protocol / toggled in the cloud
-// UI). There is no container label for this.
+// excerpt. Callers gate this on the effective cloud-pushed LogConfig. There is
+// no container label for this.
 func (c *Collector) captureLogs(ctx context.Context, serviceKey, containerID string) (*proto.LogExcerpt, error) {
 	lines, _, err := c.docker.ContainerLogsTail(ctx, containerID, proto.MaxLogLines)
 	if err != nil {

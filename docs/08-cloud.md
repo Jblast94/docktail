@@ -40,10 +40,10 @@ services:
 
 When enabled, the agent reports metadata only:
 
-- Snapshots of DockTail-managed services after each reconcile.
+- Periodic snapshots of DockTail-managed services, including stopped containers, plus refreshes after successful reconciles.
 - Docker failure events, including container exit codes, out-of-memory (OOM) kills, health-status changes, and restart loops.
 - Local-vantage check results. Checks default to TCP; HTTP checks run only when pushed from cloud-managed config.
-- Opt-in log excerpts. Log capture is enabled from the cloud dashboard and pushed to the agent through the protocol; it is off by default.
+- Incident log excerpts. Capture is on by default for down-signal events, capped agent-side, and can be disabled globally or per service from the cloud dashboard.
 
 ### What It Never Does
 

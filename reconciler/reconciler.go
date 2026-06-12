@@ -164,9 +164,9 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 		return fmt.Errorf("failed to reconcile services: %w", err)
 	}
 
-	// Hand the freshly computed services to the cloud module (if attached). This
-	// is the "subscribe to reconciler results" path — the cloud never re-derives
-	// discovery.
+	// Hand the freshly computed services to the cloud module (if attached). The
+	// cloud also runs its own periodic Docker discovery so stopped containers can
+	// stay visible without becoming Tailscale serve targets.
 	if r.observer != nil {
 		r.observer.OnReconcile(ctx, containers)
 	}

@@ -11,7 +11,7 @@ type MessageType string
 // Agent -> Cloud message types.
 const (
 	TypeHello        MessageType = "hello"         // first frame after connect
-	TypeSnapshot     MessageType = "snapshot"      // full state after each reconcile
+	TypeSnapshot     MessageType = "snapshot"      // service catalog snapshot
 	TypeEvent        MessageType = "event"         // a single docker failure signal
 	TypeCheckResults MessageType = "check_results" // batched local-vantage probes
 	TypeLogExcerpt   MessageType = "log_excerpt"   // last N lines on incident (on by default)
@@ -94,7 +94,7 @@ type Snapshot struct {
 // reconciler's view plus runtime status.
 type Service struct {
 	// Identity (stable within a host).
-	Key           string `json:"key"`          // stable key within host (service name, else container name)
+	Key           string `json:"key"`          // stable key within host (service name + port, else container/funnel key)
 	ServiceName   string `json:"service_name"` // tailscale service name (e.g. "svc:myapp")
 	ContainerID   string `json:"container_id"`
 	ContainerName string `json:"container_name"`

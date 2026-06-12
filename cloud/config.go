@@ -1,9 +1,10 @@
 // Package cloud is DockTail's optional reporting module for DockTail Cloud. It
 // is completely inert unless DOCKTAIL_CLOUD_KEY is set: with no key, none of it
 // runs and no connection is opened. When enabled, it subscribes to the
-// reconciler's results (it never re-derives discovery), watches docker failure
-// signals, runs local-vantage checks, and streams metadata to the cloud over an
-// outbound WSS link.
+// reconciler's results, periodically self-discovers Docker services for an
+// authoritative cloud snapshot, watches docker failure signals, runs
+// local-vantage checks, and streams metadata to the cloud over an outbound WSS
+// link.
 //
 // The protocol is metadata-only by design (see ./proto): there are no
 // exec/deploy/shell message types and this module never executes anything on the

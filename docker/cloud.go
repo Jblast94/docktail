@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -76,18 +77,172 @@ func (c *Client) GetCloudContainers(ctx context.Context) ([]*apptypes.ContainerS
 			log.Warn().Err(perr).Str("container", name).Msg("cloud: failed to parse running container, skipping")
 			continue
 		}
-		id := cont.ID
-		if len(id) > 12 {
-			id = id[:12]
-		}
-		services = append(services, &apptypes.ContainerService{
-			ContainerID:    id,
-			ContainerName:  name,
-			ServiceEnabled: isServiceEnabled(cont.Labels),
-			ServiceName:    cont.Labels[apptypes.LabelService],
-		})
+		services = append(services, c.stoppedCloudServices(cont.ID, name, cont.Labels)...)
 	}
 	return services, nil
+}
+
+func (c *Client) stoppedCloudServices(containerID, containerName string, labels map[string]string) []*apptypes.ContainerService {
+	id := shortContainerID(containerID)
+	tags := c.cloudTags(labels, containerName)
+	var services []*apptypes.ContainerService
+
+	if isServiceEnabled(labels) {
+		if svc := cloudServiceFromLabels(id, containerID, containerName, labels, "", tags); svc != nil {
+			services = append(services, svc)
+		}
+		for _, idx := range indexedServiceNumbers(labels) {
+			if svc := cloudServiceFromLabels(id, containerID, containerName, labels, fmt.Sprintf("docktail.service.%d.", idx), tags); svc != nil {
+				services = append(services, svc)
+			}
+		}
+	}
+
+	if !isFunnelEnabled(labels) {
+		return services
+	}
+
+	funnelPort := labels[apptypes.LabelFunnelPort]
+	if funnelPort == "" {
+		return services
+	}
+	funnelProtocol := labels[apptypes.LabelFunnelProtocol]
+	if funnelProtocol == "" {
+		funnelProtocol = "https"
+	}
+	funnelFunnelPort := labels[apptypes.LabelFunnelFunnelPort]
+	if funnelFunnelPort == "" {
+		funnelFunnelPort = "443"
+	}
+	funnelPath, err := parseFunnelPath(labels[apptypes.LabelFunnelPath])
+	if err != nil {
+		funnelPath = ""
+	}
+
+	if len(services) > 0 {
+		services[0].FunnelEnabled = true
+		services[0].FunnelPort = funnelPort
+		services[0].FunnelTargetPort = funnelPort
+		services[0].FunnelFunnelPort = funnelFunnelPort
+		services[0].FunnelProtocol = funnelProtocol
+		services[0].FunnelPath = funnelPath
+		return services
+	}
+
+	services = append(services, &apptypes.ContainerService{
+		ContainerID:      id,
+		ContainerName:    containerName,
+		ServiceEnabled:   false,
+		Tags:             tags,
+		FunnelEnabled:    true,
+		FunnelPort:       funnelPort,
+		FunnelTargetPort: funnelPort,
+		FunnelFunnelPort: funnelFunnelPort,
+		FunnelProtocol:   funnelProtocol,
+		FunnelPath:       funnelPath,
+	})
+	return services
+}
+
+func cloudServiceFromLabels(id, fullID, containerName string, labels map[string]string, prefix string, tags []string) *apptypes.ContainerService {
+	serviceName := labels[prefix+"name"]
+	if prefix == "" {
+		serviceName = labels[apptypes.LabelService]
+	}
+	if serviceName == "" {
+		return nil
+	}
+
+	targetPort := labels[prefix+"port"]
+	if prefix == "" {
+		targetPort = labels[apptypes.LabelTarget]
+	}
+	if targetPort == "" {
+		return &apptypes.ContainerService{
+			ContainerID:    id,
+			ContainerName:  containerName,
+			ServiceEnabled: true,
+			ServiceName:    serviceName,
+			Tags:           tags,
+		}
+	}
+
+	servicePortLabel := labels[prefix+"service-port"]
+	serviceProtocolLabel := labels[prefix+"service-protocol"]
+	targetProtocolLabel := labels[prefix+"protocol"]
+	if prefix == "" {
+		servicePortLabel = labels[apptypes.LabelPort]
+		serviceProtocolLabel = labels[apptypes.LabelServiceProtocol]
+		targetProtocolLabel = labels[apptypes.LabelTargetProtocol]
+	}
+	protocol, servicePort, serviceProtocol, err := resolveProtocols(fullID, targetPort, servicePortLabel, serviceProtocolLabel, targetProtocolLabel)
+	if err != nil {
+		servicePort = servicePortLabel
+		if servicePort == "" {
+			servicePort = targetPort
+		}
+	}
+
+	return &apptypes.ContainerService{
+		ContainerID:     id,
+		ContainerName:   containerName,
+		ServiceEnabled:  true,
+		ServiceName:     serviceName,
+		Port:            servicePort,
+		TargetPort:      targetPort,
+		ServiceProtocol: serviceProtocol,
+		Protocol:        protocol,
+		Tags:            tags,
+	}
+}
+
+func (c *Client) cloudTags(labels map[string]string, containerName string) []string {
+	if tagsStr := labels[apptypes.LabelTags]; tagsStr != "" {
+		var tags []string
+		for _, part := range strings.Split(tagsStr, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				if !strings.HasPrefix(trimmed, "tag:") {
+					log.Warn().
+						Str("container", containerName).
+						Str("tag", trimmed).
+						Msg("Tag should start with 'tag:' prefix per Tailscale convention")
+				}
+				tags = append(tags, trimmed)
+			}
+		}
+		return tags
+	}
+	tags := make([]string, len(c.defaultTags))
+	copy(tags, c.defaultTags)
+	return tags
+}
+
+func indexedServiceNumbers(labels map[string]string) []int {
+	indices := map[int]struct{}{}
+	for key := range labels {
+		matches := indexedPortRegex.FindStringSubmatch(key)
+		if matches == nil {
+			continue
+		}
+		idx, err := strconv.Atoi(matches[1])
+		if err != nil {
+			continue
+		}
+		indices[idx] = struct{}{}
+	}
+	sorted := make([]int, 0, len(indices))
+	for idx := range indices {
+		sorted = append(sorted, idx)
+	}
+	sort.Ints(sorted)
+	return sorted
+}
+
+func shortContainerID(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
 }
 
 // EngineID returns the docker engine ID — the stable host fingerprint and the
