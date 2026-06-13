@@ -224,8 +224,11 @@ func (c *Client) resolveDestPort(cctx *containerCtx, targetPort string) (string,
 		log.Info().
 			Str("container", cctx.containerName).
 			Str("port", targetPort).
-			Msg("Container uses host networking, port is directly accessible on localhost")
-		return "localhost", targetPort, nil
+			Msg("Container uses host networking, port is directly accessible on 127.0.0.1")
+		// Use 127.0.0.1 (not "localhost") to force IPv4: on dual-stack hosts
+		// "localhost" resolves to ::1 first, but the port is typically bound on
+		// IPv4 only, so the IPv6 attempt is refused.
+		return "127.0.0.1", targetPort, nil
 	}
 
 	if cctx.isDirectMode {
@@ -315,10 +318,13 @@ func (c *Client) resolveDestPort(cctx *containerCtx, targetPort string) (string,
 		Str("container", cctx.containerName).
 		Str("container_port", targetPort).
 		Str("host_port", hostPort).
-		Str("will_proxy_to", fmt.Sprintf("localhost:%s", hostPort)).
+		Str("will_proxy_to", fmt.Sprintf("127.0.0.1:%s", hostPort)).
 		Msg("Direct mode disabled - using published port binding")
 
-	return "localhost", hostPort, nil
+	// Use 127.0.0.1 (not "localhost") to force IPv4: Docker publishes ports on
+	// IPv4 (0.0.0.0) by default, but on dual-stack hosts "localhost" resolves to
+	// ::1 first, so the IPv6 connection attempt is refused.
+	return "127.0.0.1", hostPort, nil
 }
 
 type funnelConfig struct {
