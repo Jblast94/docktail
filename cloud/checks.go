@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	dialTimeout = 2 * time.Second
+	dialTimeout = 5 * time.Second
 	httpTimeout = 5 * time.Second
 )
 
