@@ -51,6 +51,7 @@ type Collector struct {
 	checks       []proto.CheckConfig // cloud-pushed check config
 	logMode      string              // workspace default capture mode ("" ⇒ proto.LogModeIncident)
 	logOverrides map[string]string   // per-service capture mode override (service key -> proto.LogMode*)
+	checkFails   map[string]int      // consecutive local-check failures per service key, for incident log capture
 	cfgVer       int
 	unmonitored  bool      // cloud reports this host past the plan cap; throttle output
 	lastTeaser   time.Time // last throttled teaser snapshot sent while unmonitored
@@ -94,6 +95,7 @@ func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, logger zer
 		dockerVersion: dc.ServerVersion(ctx),
 		specs:         dc.HostSpecs(ctx),
 		logOverrides:  map[string]string{},
+		checkFails:    map[string]int{},
 		prevCPU:       map[string]cpuSample{},
 	}, nil
 }
@@ -465,23 +467,93 @@ func atoiPtr(s string) (*int, bool) {
 	return &n, true
 }
 
-// maybeCaptureLogs captures + sends a log excerpt for down-signal events unless
-// the service's effective capture mode is off. Capture is on by default.
+// maybeCaptureLogs captures + sends a log excerpt for docker down-signal events
+// unless the service's effective capture mode is off. Capture is on by default.
+// health_status is captured only on the unhealthy transition — the only one the
+// cloud opens an incident for; healthy/starting transitions carry no incident.
 func (c *Collector) maybeCaptureLogs(ctx context.Context, conn *wsConn, ev proto.Event) {
 	switch ev.Kind {
 	case proto.EventDie, proto.EventOOM, proto.EventRestartLoop:
+	case proto.EventHealthStatus:
+		if !strings.EqualFold(ev.HealthStatus, "unhealthy") {
+			return
+		}
 	default:
 		return
 	}
-	if ev.ContainerID == "" || c.logModeFor(ev.ServiceKey) == proto.LogModeOff {
+	c.captureAndSend(ctx, conn, ev.ServiceKey, ev.ContainerID)
+}
+
+// incidentCaptureThreshold mirrors the cloud health engine's local-failure
+// debounce (DefaultDebounce): the cloud opens a container incident on the Nth
+// consecutive local failure, so the agent captures the log tail on that same
+// edge. If the cloud's debounce differs, the excerpt arrives before the incident
+// opens and the cloud back-links it (AttachOrphanLogExcerpts), so this need not
+// match exactly — it only keeps the common case attaching directly.
+const incidentCaptureThreshold = 2
+
+// captureOnCheckFailures captures a log excerpt for any service whose local
+// checks have just crossed the debounce threshold, mirroring the docker-event
+// path for probe-driven incidents (a running container that fails its probe
+// emits no docker event, so this is the only signal that would carry logs).
+// Capture fires exactly once per failing episode — on the threshold edge — and
+// the per-service streak resets on the next OK. Must be called after the
+// check_results frame is sent so the excerpt arrives after the cloud has had a
+// chance to open the incident.
+func (c *Collector) captureOnCheckFailures(ctx context.Context, conn *wsConn, services []proto.Service, results []proto.CheckResult) {
+	byKey := make(map[string]proto.Service, len(services))
+	for _, s := range services {
+		byKey[s.Key] = s
+	}
+	for _, r := range results {
+		if r.ServiceKey == "" {
+			continue
+		}
+		c.mu.Lock()
+		if r.OK {
+			delete(c.checkFails, r.ServiceKey)
+			c.mu.Unlock()
+			continue
+		}
+		n := c.checkFails[r.ServiceKey] + 1
+		c.checkFails[r.ServiceKey] = n
+		c.mu.Unlock()
+		if n != incidentCaptureThreshold {
+			continue // below the edge, or already captured this episode
+		}
+		if svc, ok := byKey[r.ServiceKey]; ok {
+			c.captureAndSend(ctx, conn, r.ServiceKey, svc.ContainerID)
+		}
+	}
+	c.pruneCheckFails(byKey)
+}
+
+// pruneCheckFails drops failure streaks for service keys no longer present in the
+// current snapshot, keeping the tracker bounded to live services.
+func (c *Collector) pruneCheckFails(present map[string]proto.Service) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k := range c.checkFails {
+		if _, ok := present[k]; !ok {
+			delete(c.checkFails, k)
+		}
+	}
+}
+
+// captureAndSend captures a capped log excerpt for a service and sends it, unless
+// the service's effective capture mode is off or there is no container to read.
+// Shared by the docker-event and local-check down paths. Best-effort: a capture
+// error is logged at debug and dropped.
+func (c *Collector) captureAndSend(ctx context.Context, conn *wsConn, serviceKey, containerID string) {
+	if containerID == "" || c.logModeFor(serviceKey) == proto.LogModeOff {
 		return
 	}
-	excerpt, err := c.captureLogs(ctx, ev.ServiceKey, ev.ContainerID)
+	excerpt, err := c.captureLogs(ctx, serviceKey, containerID)
 	if err != nil || excerpt == nil {
 		return
 	}
 	c.send(conn, proto.TypeLogExcerpt, excerpt)
-	c.log.Debug().Str("service", ev.ServiceKey).Int("lines", len(excerpt.Lines)).Msg("cloud: log excerpt sent")
+	c.log.Debug().Str("service", serviceKey).Int("lines", len(excerpt.Lines)).Msg("cloud: log excerpt sent")
 }
 
 // ---- connection lifecycle ------------------------------------------------
@@ -637,6 +709,10 @@ func (c *Collector) runChecks(ctx context.Context, conn *wsConn) {
 	}
 	c.send(conn, proto.TypeCheckResults, proto.CheckResults{Results: results})
 	c.log.Debug().Int("results", len(results)).Msg("cloud: check results sent")
+	// Capture logs for services that just crossed the down-debounce edge — the
+	// probe-driven counterpart to maybeCaptureLogs. Sent after check_results so
+	// the excerpt lands once the cloud has opened the incident.
+	c.captureOnCheckFailures(ctx, conn, services, results)
 }
 
 func (c *Collector) sendCurrentSnapshot(conn *wsConn) {
