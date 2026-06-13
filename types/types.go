@@ -2,16 +2,24 @@ package types
 
 // ContainerService represents a parsed container with its Tailscale service configuration
 type ContainerService struct {
-	ContainerID      string
-	ContainerName    string
-	ServiceEnabled   bool
-	ServiceName      string
-	Port             string   // Tailscale service port (e.g., "443")
-	TargetPort       string   // Container/host port to proxy to (e.g., "9080")
-	ServiceProtocol  string   // Protocol Tailscale uses (e.g., "https", "http", "tcp")
-	Protocol         string   // Protocol the container speaks (e.g., "http", "https", "tcp")
-	Tags             []string // Tailscale service tags (e.g., ["tag:container", "tag:web"])
-	IPAddress        string
+	ContainerID     string
+	ContainerName   string
+	ServiceEnabled  bool
+	ServiceName     string
+	Port            string   // Tailscale service port (e.g., "443")
+	TargetPort      string   // Container/host port to proxy to (e.g., "9080")
+	ServiceProtocol string   // Protocol Tailscale uses (e.g., "https", "http", "tcp")
+	Protocol        string   // Protocol the container speaks (e.g., "http", "https", "tcp")
+	Tags            []string // Tailscale service tags (e.g., ["tag:container", "tag:web"])
+	IPAddress       string
+	// MonitorIP/MonitorPort are where the LOCAL health check should probe the
+	// container directly — its container-network IP and container port. They only
+	// diverge from IPAddress/TargetPort (the tailscale-serve destination) in
+	// published-port mode, whose serve target is a host-relative 127.0.0.1:<hostPort>
+	// the agent can't reach from inside its own container. Empty for direct/host
+	// mode (probe IPAddress/TargetPort) or when no container IP is resolvable.
+	MonitorIP        string
+	MonitorPort      string
 	FunnelEnabled    bool   // Enable Tailscale Funnel (public internet access)
 	FunnelPort       string // Container port for funnel (separate from service port)
 	FunnelTargetPort string // Host port that maps to FunnelPort

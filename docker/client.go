@@ -327,6 +327,28 @@ func (c *Client) resolveDestPort(cctx *containerCtx, targetPort string) (string,
 	return "127.0.0.1", hostPort, nil
 }
 
+// monitorTarget returns an explicit address for the LOCAL health check to probe
+// the container directly, or ("", "") to fall back to the serve destination
+// (IPAddress:TargetPort). It diverges from the serve target only in published-port
+// mode: there the serve destination is a host-relative 127.0.0.1:<hostPort> that
+// the agent can't reach from inside its own container, so the check instead probes
+// the container's own network IP and container port — reachable wherever the agent
+// can reach docker-networked containers, exactly the path direct mode already uses.
+// containerPort is the container's own port (the docktail.service[.N].port label).
+// This does NOT affect tailscale serve, which keeps using IPAddress/TargetPort.
+func (c *Client) monitorTarget(cctx *containerCtx, containerPort string) (string, string) {
+	// Direct/host modes already point IPAddress/TargetPort at a directly-probeable
+	// endpoint; no override needed. none-network has no address to probe.
+	if cctx.isDirectMode || cctx.isHostNetwork || cctx.isNoNetwork {
+		return "", ""
+	}
+	ip, _, err := c.getContainerIP(cctx.inspect, cctx.specifiedNetwork, cctx.containerName)
+	if err != nil || ip == "" {
+		return "", ""
+	}
+	return ip, containerPort
+}
+
 type funnelConfig struct {
 	IPAddress  string
 	Port       string
@@ -496,6 +518,7 @@ func (c *Client) parseContainer(ctx context.Context, containerID string, labels 
 			return nil, err
 		}
 		cctx.destIP = destIP
+		monIP, monPort := c.monitorTarget(cctx, targetPort)
 
 		primary := &apptypes.ContainerService{
 			ContainerID:     cctx.containerID[:12],
@@ -508,6 +531,8 @@ func (c *Client) parseContainer(ctx context.Context, containerID string, labels 
 			Protocol:        protocol,
 			Tags:            tags,
 			IPAddress:       destIP,
+			MonitorIP:       monIP,
+			MonitorPort:     monPort,
 		}
 		result = append(result, primary)
 
@@ -664,6 +689,8 @@ func (c *Client) parseIndexedPorts(
 			idxDestIP = cctx.destIP
 		}
 
+		monIP, monPort := c.monitorTarget(cctx, targetPort)
+
 		svc := &apptypes.ContainerService{
 			ContainerID:     cctx.containerID[:12],
 			ContainerName:   cctx.containerName,
@@ -675,6 +702,8 @@ func (c *Client) parseIndexedPorts(
 			Protocol:        protocol,
 			Tags:            cctx.tags,
 			IPAddress:       idxDestIP,
+			MonitorIP:       monIP,
+			MonitorPort:     monPort,
 			FunnelEnabled:   false,
 		}
 

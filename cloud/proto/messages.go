@@ -106,10 +106,18 @@ type Service struct {
 	ComposeService string `json:"compose_service,omitempty"`
 
 	// Network / exposure.
-	FQDN         string   `json:"fqdn,omitempty"` // tailnet FQDN (e.g. myapp.tailnet.ts.net)
-	IPAddress    string   `json:"ip_address,omitempty"`
-	Port         string   `json:"port,omitempty"`             // tailscale service port
-	TargetPort   string   `json:"target_port,omitempty"`      // container/host port behind it
+	FQDN       string `json:"fqdn,omitempty"` // tailnet FQDN (e.g. myapp.tailnet.ts.net)
+	IPAddress  string `json:"ip_address,omitempty"`
+	Port       string `json:"port,omitempty"`        // tailscale service port
+	TargetPort string `json:"target_port,omitempty"` // container/host port behind it
+	// CheckIP/CheckPort, when set, are where the agent's LOCAL health check probes
+	// the container directly, overriding IPAddress/TargetPort for the probe only.
+	// Set only for published-port services, whose serve target is a host-relative
+	// 127.0.0.1:<hostPort> the agent can't reach from inside its own container; the
+	// check instead targets the container's own IP:port. Empty ⇒ probe IPAddress/
+	// TargetPort (direct/host mode). Does not affect tailscale serve.
+	CheckIP      string   `json:"check_ip,omitempty"`
+	CheckPort    string   `json:"check_port,omitempty"`
 	ServiceProto string   `json:"service_protocol,omitempty"` // protocol tailscale serves (https/http/tcp)
 	Protocol     string   `json:"protocol,omitempty"`         // protocol the container speaks
 	Tags         []string `json:"tags,omitempty"`

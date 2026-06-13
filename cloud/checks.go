@@ -89,12 +89,21 @@ func resolveTCP(sc serviceCheck) (string, bool) {
 	if sc.cfg != nil && sc.cfg.Target != "" {
 		return sc.cfg.Target, true
 	}
-	host := svc.IPAddress
-	port := firstNonEmpty(svc.TargetPort, svc.Port)
+	host, port := checkHostPort(svc)
 	if host == "" || port == "" {
 		return "", false
 	}
 	return net.JoinHostPort(host, port), true
+}
+
+// checkHostPort picks the address the LOCAL check should dial: the explicit
+// CheckIP/CheckPort the agent attached for published-port services (whose serve
+// target 127.0.0.1:<hostPort> isn't reachable from inside the agent's container)
+// when present, else the serve destination IPAddress/TargetPort (direct/host mode).
+func checkHostPort(svc proto.Service) (host, port string) {
+	host = firstNonEmpty(svc.CheckIP, svc.IPAddress)
+	port = firstNonEmpty(svc.CheckPort, svc.TargetPort, svc.Port)
+	return host, port
 }
 
 func resolveHTTP(sc serviceCheck) (target, path string, expect int, ok bool) {
@@ -110,8 +119,7 @@ func resolveHTTP(sc serviceCheck) (target, path string, expect int, ok bool) {
 		expect = sc.cfg.ExpectStatus
 	}
 	if target == "" {
-		host := svc.IPAddress
-		port := firstNonEmpty(svc.TargetPort, svc.Port)
+		host, port := checkHostPort(svc)
 		if host == "" || port == "" {
 			return "", "", 0, false
 		}

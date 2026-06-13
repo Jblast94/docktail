@@ -251,6 +251,8 @@ func toService(cs *apptypes.ContainerService, info docker.CloudInfo, stats conta
 		IPAddress:      cs.IPAddress,
 		Port:           cs.Port,
 		TargetPort:     cs.TargetPort,
+		CheckIP:        cs.MonitorIP,
+		CheckPort:      cs.MonitorPort,
 		ServiceProto:   cs.ServiceProtocol,
 		Protocol:       cs.Protocol,
 		Tags:           cs.Tags,
