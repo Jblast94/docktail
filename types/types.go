@@ -12,12 +12,15 @@ type ContainerService struct {
 	Protocol        string   // Protocol the container speaks (e.g., "http", "https", "tcp")
 	Tags            []string // Tailscale service tags (e.g., ["tag:container", "tag:web"])
 	IPAddress       string
-	// MonitorIP/MonitorPort are where the LOCAL health check should probe the
-	// container directly — its container-network IP and container port. They only
-	// diverge from IPAddress/TargetPort (the tailscale-serve destination) in
-	// published-port mode, whose serve target is a host-relative 127.0.0.1:<hostPort>
-	// the agent can't reach from inside its own container. Empty for direct/host
-	// mode (probe IPAddress/TargetPort) or when no container IP is resolvable.
+	// MonitorIP/MonitorPort are where the LOCAL health check should probe, set only
+	// when it must diverge from IPAddress/TargetPort (the tailscale-serve
+	// destination, which is resolved for tailscaled in the host netns and so can be
+	// a host-relative 127.0.0.1 the agent can't reach from inside its own
+	// container):
+	//   - published-port mode: the container's own network IP and container port;
+	//   - host-network mode:   the docker host gateway and the container port.
+	// Empty for direct mode (IPAddress is already the container IP), when the agent
+	// itself shares the host netns (127.0.0.1 works), or when nothing is resolvable.
 	MonitorIP        string
 	MonitorPort      string
 	FunnelEnabled    bool   // Enable Tailscale Funnel (public internet access)

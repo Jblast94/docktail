@@ -110,12 +110,12 @@ type Service struct {
 	IPAddress  string `json:"ip_address,omitempty"`
 	Port       string `json:"port,omitempty"`        // tailscale service port
 	TargetPort string `json:"target_port,omitempty"` // container/host port behind it
-	// CheckIP/CheckPort, when set, are where the agent's LOCAL health check probes
-	// the container directly, overriding IPAddress/TargetPort for the probe only.
-	// Set only for published-port services, whose serve target is a host-relative
-	// 127.0.0.1:<hostPort> the agent can't reach from inside its own container; the
-	// check instead targets the container's own IP:port. Empty ⇒ probe IPAddress/
-	// TargetPort (direct/host mode). Does not affect tailscale serve.
+	// CheckIP/CheckPort, when set, are where the agent's LOCAL health check probes,
+	// overriding IPAddress/TargetPort for the probe only. Set when the serve target
+	// is a host-relative 127.0.0.1 the agent can't reach from inside its own
+	// container: published-port services → the container's own IP:port; host-network
+	// services → the docker host gateway:containerPort. Empty ⇒ probe IPAddress/
+	// TargetPort (direct mode, or the agent on the host netns). Not used by serve.
 	CheckIP      string   `json:"check_ip,omitempty"`
 	CheckPort    string   `json:"check_port,omitempty"`
 	ServiceProto string   `json:"service_protocol,omitempty"` // protocol tailscale serves (https/http/tcp)

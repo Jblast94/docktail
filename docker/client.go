@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -41,6 +43,11 @@ type containerCtx struct {
 type Client struct {
 	cli         *client.Client
 	defaultTags []string
+
+	// gatewayIP caches the address used to reach host-networked services from
+	// inside the agent's own container (see hostGatewayIP). Resolved at most once.
+	gatewayOnce sync.Once
+	gatewayIP   string
 }
 
 // NewClient creates a new Docker client
@@ -329,24 +336,104 @@ func (c *Client) resolveDestPort(cctx *containerCtx, targetPort string) (string,
 
 // monitorTarget returns an explicit address for the LOCAL health check to probe
 // the container directly, or ("", "") to fall back to the serve destination
-// (IPAddress:TargetPort). It diverges from the serve target only in published-port
-// mode: there the serve destination is a host-relative 127.0.0.1:<hostPort> that
-// the agent can't reach from inside its own container, so the check instead probes
-// the container's own network IP and container port — reachable wherever the agent
-// can reach docker-networked containers, exactly the path direct mode already uses.
+// (IPAddress:TargetPort). The serve destination is correct for tailscaled (which
+// runs in the host's network namespace), but the health check runs inside the
+// agent's own container, so any host-relative 127.0.0.1 address is wrong for it.
 // containerPort is the container's own port (the docktail.service[.N].port label).
 // This does NOT affect tailscale serve, which keeps using IPAddress/TargetPort.
-func (c *Client) monitorTarget(cctx *containerCtx, containerPort string) (string, string) {
-	// Direct/host modes already point IPAddress/TargetPort at a directly-probeable
-	// endpoint; no override needed. none-network has no address to probe.
-	if cctx.isDirectMode || cctx.isHostNetwork || cctx.isNoNetwork {
+func (c *Client) monitorTarget(ctx context.Context, cctx *containerCtx, containerPort string) (string, string) {
+	switch {
+	case cctx.isNoNetwork:
+		// No address to probe.
 		return "", ""
-	}
-	ip, _, err := c.getContainerIP(cctx.inspect, cctx.specifiedNetwork, cctx.containerName)
-	if err != nil || ip == "" {
+	case cctx.isDirectMode:
+		// IPAddress/TargetPort already point at the container's own network IP,
+		// reachable from the agent's container; no override needed.
 		return "", ""
+	case cctx.isHostNetwork:
+		// The serve destination is 127.0.0.1:<port> — correct for tailscaled (host
+		// netns) but the agent's own container loopback otherwise. Probe the host
+		// via its docker-network gateway instead. Empty ⇒ the agent itself shares
+		// the host netns, so 127.0.0.1 is already correct: fall back to it.
+		gw := c.hostGatewayIP(ctx)
+		if gw == "" {
+			return "", ""
+		}
+		return gw, containerPort
+	default:
+		// Published-port mode: the serve destination is a host-relative
+		// 127.0.0.1:<hostPort> the agent can't reach from inside its container, so
+		// probe the container's own network IP and container port instead.
+		ip, _, err := c.getContainerIP(cctx.inspect, cctx.specifiedNetwork, cctx.containerName)
+		if err != nil || ip == "" {
+			return "", ""
+		}
+		return ip, containerPort
 	}
-	return ip, containerPort
+}
+
+// hostGatewayIP returns an address the agent can use to reach services running in
+// the host's network namespace (network_mode: host). The agent runs in its own
+// container, so the host is reachable via the gateway of one of the agent's docker
+// networks — the host's address on that bridge, where a host-networked service
+// bound to 0.0.0.0 is reachable. Resolved at most once and cached.
+//
+// Returns "" when the agent itself shares the host netns (127.0.0.1 already works),
+// or "host.docker.internal" as a best-effort fallback when the gateway can't be
+// resolved (Docker's host alias; needs extra_hosts host.docker.internal:host-gateway
+// on Linux).
+func (c *Client) hostGatewayIP(ctx context.Context) string {
+	c.gatewayOnce.Do(func() {
+		c.gatewayIP = c.resolveHostGateway(ctx)
+	})
+	return c.gatewayIP
+}
+
+func (c *Client) resolveHostGateway(ctx context.Context) string {
+	const fallback = "host.docker.internal"
+
+	// The agent's hostname defaults to its own short container ID, which
+	// ContainerInspect resolves; a custom hostname or container name works too.
+	self, err := os.Hostname()
+	if err != nil || self == "" {
+		return fallback
+	}
+	inspect, err := c.cli.ContainerInspect(ctx, self)
+	if err != nil {
+		log.Debug().Err(err).Str("self", self).
+			Msg("Could not inspect agent's own container to resolve host gateway; falling back to host.docker.internal")
+		return fallback
+	}
+
+	// Agent on host networking: 127.0.0.1 already reaches host-networked services.
+	if inspect.HostConfig != nil && string(inspect.HostConfig.NetworkMode) == "host" {
+		return ""
+	}
+	if inspect.NetworkSettings == nil {
+		return fallback
+	}
+
+	// Any docker bridge gateway routes to the host; prefer "bridge", else pick
+	// deterministically for stable logging.
+	networks := inspect.NetworkSettings.Networks
+	if n, ok := networks["bridge"]; ok && n.Gateway != "" {
+		log.Debug().Str("network", "bridge").Str("gateway", n.Gateway).
+			Msg("Resolved host gateway for host-networked service probes")
+		return n.Gateway
+	}
+	names := make([]string, 0, len(networks))
+	for name := range networks {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if gw := networks[name].Gateway; gw != "" {
+			log.Debug().Str("network", name).Str("gateway", gw).
+				Msg("Resolved host gateway for host-networked service probes")
+			return gw
+		}
+	}
+	return fallback
 }
 
 type funnelConfig struct {
@@ -518,7 +605,7 @@ func (c *Client) parseContainer(ctx context.Context, containerID string, labels 
 			return nil, err
 		}
 		cctx.destIP = destIP
-		monIP, monPort := c.monitorTarget(cctx, targetPort)
+		monIP, monPort := c.monitorTarget(ctx, cctx, targetPort)
 
 		primary := &apptypes.ContainerService{
 			ContainerID:     cctx.containerID[:12],
@@ -537,7 +624,7 @@ func (c *Client) parseContainer(ctx context.Context, containerID string, labels 
 		result = append(result, primary)
 
 		// Parse indexed services (one container can define multiple separate Tailscale services)
-		indexedServices, err := c.parseIndexedPorts(cctx, labels, serviceName, port)
+		indexedServices, err := c.parseIndexedPorts(ctx, cctx, labels, serviceName, port)
 		if err != nil {
 			return nil, err
 		}
@@ -583,6 +670,7 @@ func (c *Client) parseContainer(ctx context.Context, containerID string, labels 
 // and returns a ContainerService for each valid index. Each index defines a separate
 // Tailscale service and requires its own name (docktail.service.N.name).
 func (c *Client) parseIndexedPorts(
+	ctx context.Context,
 	cctx *containerCtx,
 	labels map[string]string,
 	primaryServiceName string,
@@ -689,7 +777,7 @@ func (c *Client) parseIndexedPorts(
 			idxDestIP = cctx.destIP
 		}
 
-		monIP, monPort := c.monitorTarget(cctx, targetPort)
+		monIP, monPort := c.monitorTarget(ctx, cctx, targetPort)
 
 		svc := &apptypes.ContainerService{
 			ContainerID:     cctx.containerID[:12],

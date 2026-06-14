@@ -97,9 +97,10 @@ func resolveTCP(sc serviceCheck) (string, bool) {
 }
 
 // checkHostPort picks the address the LOCAL check should dial: the explicit
-// CheckIP/CheckPort the agent attached for published-port services (whose serve
-// target 127.0.0.1:<hostPort> isn't reachable from inside the agent's container)
-// when present, else the serve destination IPAddress/TargetPort (direct/host mode).
+// CheckIP/CheckPort the agent attached when the serve destination isn't reachable
+// from inside the agent's container (published-port mode → container IP; host-network
+// mode → docker host gateway) when present, else the serve destination
+// IPAddress/TargetPort (direct mode, or the agent sharing the host netns).
 func checkHostPort(svc proto.Service) (host, port string) {
 	host = firstNonEmpty(svc.CheckIP, svc.IPAddress)
 	port = firstNonEmpty(svc.CheckPort, svc.TargetPort, svc.Port)
