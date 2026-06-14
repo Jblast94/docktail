@@ -389,20 +389,73 @@ func (c *Client) hostGatewayIP(ctx context.Context) string {
 	return c.gatewayIP
 }
 
-func (c *Client) resolveHostGateway(ctx context.Context) string {
-	const fallback = "host.docker.internal"
+// selfContainerMountRegex extracts the agent's own container ID from a
+// /var/lib/docker/containers/<id>/ mount source in /proc/self/mountinfo (Docker
+// bind-mounts /etc/hostname, /etc/hosts and /etc/resolv.conf from there).
+var selfContainerMountRegex = regexp.MustCompile(`/containers/([0-9a-f]{64})/`)
 
-	// The agent's hostname defaults to its own short container ID, which
-	// ContainerInspect resolves; a custom hostname or container name works too.
-	self, err := os.Hostname()
-	if err != nil || self == "" {
-		return fallback
+// hex64Regex matches a full Docker container ID anywhere (e.g. in a cgroup path).
+var hex64Regex = regexp.MustCompile(`[0-9a-f]{64}`)
+
+// ownContainerID best-effort discovers the agent's own container ID from /proc so
+// the agent can inspect itself even when its hostname doesn't match the container
+// (a custom hostname:, or sharing the host's UTS namespace). Returns "" when the
+// agent is not running inside a container (e.g. a bare-metal binary).
+func ownContainerID() string {
+	if data, err := os.ReadFile("/proc/self/mountinfo"); err == nil {
+		if m := selfContainerMountRegex.FindSubmatch(data); m != nil {
+			return string(m[1])
+		}
 	}
-	inspect, err := c.cli.ContainerInspect(ctx, self)
-	if err != nil {
-		log.Debug().Err(err).Str("self", self).
+	if data, err := os.ReadFile("/proc/self/cgroup"); err == nil {
+		if id := hex64Regex.Find(data); id != nil {
+			return string(id)
+		}
+	}
+	return ""
+}
+
+// inspectSelf returns the InspectResponse for the agent's own container, trying
+// the /proc-discovered container ID first (robust against custom hostnames and
+// the host UTS namespace) and then the hostname. ok is false when neither
+// reference resolves (e.g. a bare-metal binary).
+func (c *Client) inspectSelf(ctx context.Context, id string) (container.InspectResponse, bool) {
+	refs := make([]string, 0, 2)
+	if id != "" {
+		refs = append(refs, id)
+	}
+	if host, err := os.Hostname(); err == nil && host != "" {
+		refs = append(refs, host)
+	}
+	for _, ref := range refs {
+		inspect, err := c.cli.ContainerInspect(ctx, ref)
+		if err == nil {
+			return inspect, true
+		}
+		log.Debug().Err(err).Str("ref", ref).
+			Msg("Could not inspect agent's own container by this reference")
+	}
+	return container.InspectResponse{}, false
+}
+
+func (c *Client) resolveHostGateway(ctx context.Context) string {
+	const hostAlias = "host.docker.internal"
+
+	id := ownContainerID()
+	inspect, ok := c.inspectSelf(ctx, id)
+	if !ok {
+		// No /proc container ID and no inspectable container ⇒ the agent runs
+		// directly on the host (bare-metal) or shares the host netns, where
+		// 127.0.0.1 already reaches host-networked services. Empty ⇒ caller falls
+		// back to 127.0.0.1.
+		if id == "" {
+			return ""
+		}
+		// We *are* in a container but couldn't inspect it (unexpected): fall back to
+		// Docker's host alias (needs extra_hosts host.docker.internal:host-gateway).
+		log.Debug().Str("id", id).
 			Msg("Could not inspect agent's own container to resolve host gateway; falling back to host.docker.internal")
-		return fallback
+		return hostAlias
 	}
 
 	// Agent on host networking: 127.0.0.1 already reaches host-networked services.
@@ -410,7 +463,7 @@ func (c *Client) resolveHostGateway(ctx context.Context) string {
 		return ""
 	}
 	if inspect.NetworkSettings == nil {
-		return fallback
+		return hostAlias
 	}
 
 	// Any docker bridge gateway routes to the host; prefer "bridge", else pick
@@ -433,7 +486,7 @@ func (c *Client) resolveHostGateway(ctx context.Context) string {
 			return gw
 		}
 	}
-	return fallback
+	return hostAlias
 }
 
 type funnelConfig struct {
