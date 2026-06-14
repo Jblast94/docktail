@@ -13,7 +13,11 @@ import (
 )
 
 const (
-	dialTimeout = 5 * time.Second
+	// dialTimeout bounds the local TCP probe's connect. Kept well above DockTail
+	// Cloud's 5s "degraded" latency threshold so a busy-but-healthy service that
+	// takes a few seconds to accept a connection is reported slow (degraded),
+	// not timed out and misclassified as a critical container-down.
+	dialTimeout = 15 * time.Second
 	httpTimeout = 5 * time.Second
 )
 
