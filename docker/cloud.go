@@ -82,6 +82,114 @@ func (c *Client) GetCloudContainers(ctx context.Context) ([]*apptypes.ContainerS
 	return services, nil
 }
 
+// OtherContainer is a NON-docktail container as seen for cloud reporting:
+// limited, read-only metadata only. It carries no exec/deploy surface and is
+// never health-checked — the cloud renders it as plain inventory alongside the
+// monitored services.
+type OtherContainer struct {
+	ID             string // short container id — identity within the host
+	Name           string
+	Image          string
+	ImageTag       string
+	State          string // running/exited/restarting/paused/created
+	Status         string // human status line, e.g. "Up 3 hours (healthy)"
+	Health         string // healthy/unhealthy/starting (best-effort, parsed from Status)
+	ComposeProject string
+	ComposeService string
+	Ports          []string
+	CreatedAt      int64 // unix seconds the container was created
+}
+
+// GetOtherContainers lists every container that is NOT a docktail-managed
+// service (neither docktail.enable nor docktail.funnel.enable set), INCLUDING
+// stopped ones, for the cloud's container-inventory view. It is read-only and
+// builds each entry straight from the container-list summary — no per-container
+// inspect — so it stays cheap even on a busy host. Used only by the cloud module
+// (DOCKTAIL_CLOUD_KEY set); docktail-managed containers are reported separately
+// by GetCloudContainers as services.
+func (c *Client) GetOtherContainers(ctx context.Context) ([]OtherContainer, error) {
+	containers, err := c.cli.ContainerList(ctx, container.ListOptions{All: true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	out := make([]OtherContainer, 0, len(containers))
+	for _, cont := range containers {
+		if isManagedContainer(cont.Labels) {
+			continue // a docktail service — reported via GetCloudContainers
+		}
+		name := ""
+		if len(cont.Names) > 0 {
+			name = strings.TrimPrefix(cont.Names[0], "/")
+		}
+		image, tag := splitImageTag(cont.Image)
+		oc := OtherContainer{
+			ID:        shortContainerID(cont.ID),
+			Name:      name,
+			Image:     image,
+			ImageTag:  tag,
+			State:     cont.State,
+			Status:    cont.Status,
+			Health:    healthFromStatus(cont.Status),
+			Ports:     formatContainerPorts(cont.Ports),
+			CreatedAt: cont.Created,
+		}
+		if cont.Labels != nil {
+			oc.ComposeProject = cont.Labels["com.docker.compose.project"]
+			oc.ComposeService = cont.Labels["com.docker.compose.service"]
+		}
+		out = append(out, oc)
+	}
+	return out, nil
+}
+
+// healthFromStatus best-effort extracts a docker healthcheck state from the
+// human status line the container-list summary reports (e.g. "Up 3 hours
+// (healthy)"), since the summary has no dedicated health field. Empty when the
+// container declares no healthcheck.
+func healthFromStatus(status string) string {
+	switch {
+	case strings.Contains(status, "(healthy)"):
+		return "healthy"
+	case strings.Contains(status, "(unhealthy)"):
+		return "unhealthy"
+	case strings.Contains(status, "health: starting"):
+		return "starting"
+	default:
+		return ""
+	}
+}
+
+// formatContainerPorts renders a container's port mappings as stable, de-duped
+// strings ("0.0.0.0:8080->80/tcp" when published, else "80/tcp"). Docker lists a
+// mapping once per host IP (v4 + v6), so identical strings collapse to one.
+func formatContainerPorts(ports []container.Port) []string {
+	if len(ports) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(ports))
+	out := make([]string, 0, len(ports))
+	for _, p := range ports {
+		var s string
+		if p.PublicPort != 0 {
+			ip := p.IP
+			if ip == "" {
+				ip = "0.0.0.0"
+			}
+			s = fmt.Sprintf("%s:%d->%d/%s", ip, p.PublicPort, p.PrivatePort, p.Type)
+		} else {
+			s = fmt.Sprintf("%d/%s", p.PrivatePort, p.Type)
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (c *Client) stoppedCloudServices(containerID, containerName string, labels map[string]string) []*apptypes.ContainerService {
 	id := shortContainerID(containerID)
 	tags := c.cloudTags(labels, containerName)

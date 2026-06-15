@@ -11,7 +11,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["hello", "snapshot", "event", "check_results", "log_excerpt", "heartbeat", "hello_ack", "config"]
+          "enum": ["hello", "snapshot", "containers", "event", "check_results", "log_excerpt", "heartbeat", "host_metrics", "hello_ack", "config"]
         },
         "ts": { "type": "integer", "description": "unix milliseconds" },
         "payload": { "type": "object" }
@@ -71,6 +71,35 @@
         "mem_limit_bytes": { "type": "integer", "description": "effective memory limit (container limit, else host total)" }
       }
     },
+    "Containers": {
+      "type": "object",
+      "description": "Inventory of non-docktail containers (metadata only; no checks/incidents).",
+      "required": ["containers"],
+      "properties": {
+        "containers": { "type": "array", "items": { "$ref": "#/$defs/Container" } },
+        "full": { "type": "boolean" }
+      }
+    },
+    "Container": {
+      "type": "object",
+      "required": ["container_id", "name", "state"],
+      "properties": {
+        "container_id": { "type": "string", "description": "docker container id (short); identity within host" },
+        "name": { "type": "string" },
+        "image": { "type": "string" },
+        "image_tag": { "type": "string" },
+        "state": { "type": "string", "description": "running/exited/restarting/paused/created" },
+        "status": { "type": "string", "description": "human status line, e.g. 'Up 3 hours (healthy)'" },
+        "health": { "type": "string", "description": "healthy/unhealthy/starting (best-effort)" },
+        "compose_project": { "type": "string" },
+        "compose_service": { "type": "string" },
+        "ports": { "type": "array", "items": { "type": "string" } },
+        "created_at": { "type": "integer", "description": "unix seconds the container was created" },
+        "cpu_percent": { "type": "number", "description": "live container CPU usage as % of all host cores" },
+        "mem_usage_bytes": { "type": "integer", "description": "live working-set memory" },
+        "mem_limit_bytes": { "type": "integer", "description": "effective memory limit" }
+      }
+    },
     "Event": {
       "type": "object",
       "required": ["kind", "container_id", "occurred_at"],
@@ -122,6 +151,30 @@
     "Heartbeat": {
       "type": "object",
       "properties": { "uptime_seconds": { "type": "integer" } }
+    },
+    "HostMetrics": {
+      "type": "object",
+      "description": "Periodic whole-host resource vitals read from the host's own /proc and /sys (the machine, not the container sum). All fields optional and best-effort.",
+      "properties": {
+        "cpu_percent": { "type": "number", "description": "host CPU utilization across all cores, 0..100" },
+        "mem_total_bytes": { "type": "integer" },
+        "mem_used_bytes": { "type": "integer", "description": "Total minus MemAvailable (discounts reclaimable cache)" },
+        "swap_total_bytes": { "type": "integer" },
+        "swap_used_bytes": { "type": "integer" },
+        "load1": { "type": "number" },
+        "load5": { "type": "number" },
+        "load15": { "type": "number" },
+        "temp_max_c": { "type": "number", "description": "hottest sensor reading in degrees Celsius" },
+        "temps": { "type": "array", "items": { "$ref": "#/$defs/TempReading" } }
+      }
+    },
+    "TempReading": {
+      "type": "object",
+      "required": ["label", "celsius"],
+      "properties": {
+        "label": { "type": "string" },
+        "celsius": { "type": "number" }
+      }
     },
     "HelloAck": {
       "type": "object",

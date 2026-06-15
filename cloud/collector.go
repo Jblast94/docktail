@@ -56,8 +56,9 @@ type Collector struct {
 	unmonitored  bool      // cloud reports this host past the plan cap; throttle output
 	lastTeaser   time.Time // last throttled teaser snapshot sent while unmonitored
 
-	statsMu sync.Mutex           // guards prevCPU only
-	prevCPU map[string]cpuSample // last CPU counters per container, for % deltas
+	statsMu      sync.Mutex           // guards prevCPU + prevCPUOther
+	prevCPU      map[string]cpuSample // last CPU counters per service container, for % deltas
+	prevCPUOther map[string]cpuSample // same, for non-docktail containers (kept separate so neither prunes the other)
 }
 
 // cpuSample is the previous CPU counter reading kept per container. Docker
@@ -97,6 +98,7 @@ func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, logger zer
 		logOverrides:  map[string]string{},
 		checkFails:    map[string]int{},
 		prevCPU:       map[string]cpuSample{},
+		prevCPUOther:  map[string]cpuSample{},
 	}, nil
 }
 
@@ -189,6 +191,13 @@ func (c *Collector) buildServices(ctx context.Context, services []*apptypes.Cont
 // non-running container or any error yields a zero reading, which the cloud
 // stores as "unknown" (NULL).
 func (c *Collector) sampleStats(ctx context.Context, containerID, state string) containerStats {
+	return c.sampleStatsWith(ctx, containerID, state, c.prevCPU)
+}
+
+// sampleStatsWith is sampleStats against a caller-supplied previous-CPU map, so
+// monitored services (c.prevCPU) and non-docktail containers (c.prevCPUOther)
+// keep independent CPU-delta history and never prune each other's samples.
+func (c *Collector) sampleStatsWith(ctx context.Context, containerID, state string, prevCPU map[string]cpuSample) containerStats {
 	if containerID == "" || state != "running" {
 		return containerStats{}
 	}
@@ -200,8 +209,8 @@ func (c *Collector) sampleStats(ctx context.Context, containerID, state string) 
 	out := containerStats{memUsage: s.MemUsageBytes, memLimit: s.MemLimitBytes}
 
 	c.statsMu.Lock()
-	prev, ok := c.prevCPU[containerID]
-	c.prevCPU[containerID] = cpuSample{total: s.CPUTotalUsage, system: s.CPUSystemUsage}
+	prev, ok := prevCPU[containerID]
+	prevCPU[containerID] = cpuSample{total: s.CPUTotalUsage, system: s.CPUSystemUsage}
 	c.statsMu.Unlock()
 
 	// A percentage needs two samples. Report it once we have a prior reading and
@@ -227,11 +236,18 @@ func (c *Collector) sampleStats(ctx context.Context, containerID, state string) 
 // pruneStats drops previous-CPU samples for containers absent from the latest
 // build, keeping the cache bounded to currently-managed containers.
 func (c *Collector) pruneStats(present map[string]struct{}) {
+	c.pruneStatsMap(present, c.prevCPU)
+}
+
+// pruneStatsMap drops previous-CPU samples for containers absent from present,
+// from a caller-supplied map (c.prevCPU for services, c.prevCPUOther for
+// non-docktail containers).
+func (c *Collector) pruneStatsMap(present map[string]struct{}, prevCPU map[string]cpuSample) {
 	c.statsMu.Lock()
 	defer c.statsMu.Unlock()
-	for id := range c.prevCPU {
+	for id := range prevCPU {
 		if _, ok := present[id]; !ok {
-			delete(c.prevCPU, id)
+			delete(prevCPU, id)
 		}
 	}
 }
@@ -786,6 +802,61 @@ func (c *Collector) scanAndSnapshot(ctx context.Context, conn *wsConn) {
 	// for presence — the cloud uses it to detect removed services.
 	c.send(conn, proto.TypeSnapshot, proto.Snapshot{Services: built, Full: true})
 	c.log.Debug().Int("services", len(built)).Msg("cloud: snapshot sent (self-discovered)")
+
+	// Also report the host's non-docktail containers (metadata-only inventory).
+	c.scanAndSendOtherContainers(ctx, conn)
+}
+
+// scanAndSendOtherContainers discovers the host's NON-docktail containers and
+// sends them as a full, authoritative `containers` frame. It is metadata-only
+// (no checks/events) and shares the discover loop's cadence. Skipped while
+// unmonitored: the cloud drops these for an over-cap host and its detail page
+// hides it, so there is nothing to show.
+func (c *Collector) scanAndSendOtherContainers(ctx context.Context, conn *wsConn) {
+	c.mu.RLock()
+	unmonitored := c.unmonitored
+	c.mu.RUnlock()
+	if unmonitored {
+		return
+	}
+	containers, err := c.docker.GetOtherContainers(ctx)
+	if err != nil {
+		c.log.Warn().Err(err).Msg("cloud: other-container discovery failed")
+		return
+	}
+	built := c.buildContainers(ctx, containers)
+	c.send(conn, proto.TypeContainers, proto.Containers{Containers: built, Full: true})
+	c.log.Debug().Int("containers", len(built)).Msg("cloud: containers sent (non-docktail)")
+}
+
+// buildContainers maps docker OtherContainer values onto wire Containers,
+// sampling a one-shot stats reading per running container against prevCPUOther
+// (kept separate from services' prevCPU so the two never prune each other).
+func (c *Collector) buildContainers(ctx context.Context, containers []docker.OtherContainer) []proto.Container {
+	out := make([]proto.Container, 0, len(containers))
+	present := make(map[string]struct{}, len(containers))
+	for _, oc := range containers {
+		st := c.sampleStatsWith(ctx, oc.ID, oc.State, c.prevCPUOther)
+		present[oc.ID] = struct{}{}
+		out = append(out, proto.Container{
+			ContainerID:    oc.ID,
+			Name:           oc.Name,
+			Image:          oc.Image,
+			ImageTag:       oc.ImageTag,
+			State:          oc.State,
+			Status:         oc.Status,
+			Health:         oc.Health,
+			ComposeProject: oc.ComposeProject,
+			ComposeService: oc.ComposeService,
+			Ports:          oc.Ports,
+			CreatedAt:      oc.CreatedAt,
+			CPUPercent:     st.cpuPercent,
+			MemUsageBytes:  st.memUsage,
+			MemLimitBytes:  st.memLimit,
+		})
+	}
+	c.pruneStatsMap(present, c.prevCPUOther)
+	return out
 }
 
 // ---- helpers -------------------------------------------------------------
@@ -797,7 +868,7 @@ func (c *Collector) sendHello(conn *wsConn) bool {
 		Hostname:        c.hostname,
 		AgentVersion:    agentVersion,
 		DockerVersion:   c.dockerVersion,
-		Capabilities:    []string{"http_checks", "log_capture", "container_stats"},
+		Capabilities:    []string{"http_checks", "log_capture", "container_stats", "container_inventory"},
 		OS:              c.specs.OS,
 		KernelVersion:   c.specs.KernelVersion,
 		Arch:            c.specs.Arch,

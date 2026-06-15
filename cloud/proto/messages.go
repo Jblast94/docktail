@@ -12,10 +12,12 @@ type MessageType string
 const (
 	TypeHello        MessageType = "hello"         // first frame after connect
 	TypeSnapshot     MessageType = "snapshot"      // service catalog snapshot
+	TypeContainers   MessageType = "containers"    // non-docktail container inventory (metadata only)
 	TypeEvent        MessageType = "event"         // a single docker failure signal
 	TypeCheckResults MessageType = "check_results" // batched local-vantage probes
 	TypeLogExcerpt   MessageType = "log_excerpt"   // last N lines on incident (on by default)
 	TypeHeartbeat    MessageType = "heartbeat"     // liveness, every HeartbeatInterval
+	TypeHostMetrics  MessageType = "host_metrics"  // periodic whole-host resource vitals
 )
 
 // Cloud -> Agent message types.
@@ -144,6 +146,45 @@ type Service struct {
 	MemLimitBytes int64    `json:"mem_limit_bytes,omitempty"` // effective limit (container limit, else host total)
 }
 
+// Containers is the inventory of NON-docktail containers the agent sees on the
+// host — every running/stopped container that is not published as a docktail
+// service. Unlike [Snapshot] (the monitored service catalog), these carry only
+// descriptive, read-only metadata: there are no checks, vantages, or incidents
+// for them, so the cloud never alerts on them. Like Snapshot, a Full message is
+// authoritative for presence — the cloud upserts the listed containers and
+// treats any catalogued container absent from a full message as gone from
+// Docker. This frame is additive and metadata-only; it changes no existing
+// message and ProtocolVersion stays 1.
+type Containers struct {
+	Containers []Container `json:"containers"`
+	Full       bool        `json:"full"`
+}
+
+// Container is one non-docktail container as the agent sees it: limited,
+// read-only metadata only — no exec/deploy surface. Identity is the docker
+// ContainerID (stable within a host).
+type Container struct {
+	ContainerID    string   `json:"container_id"` // docker container id (short) — identity within host
+	Name           string   `json:"name"`
+	Image          string   `json:"image"`
+	ImageTag       string   `json:"image_tag,omitempty"`
+	State          string   `json:"state"`            // running/exited/restarting/paused/created
+	Status         string   `json:"status,omitempty"` // human status line, e.g. "Up 3 hours (healthy)"
+	Health         string   `json:"health,omitempty"` // healthy/unhealthy/starting (best-effort, may be empty)
+	ComposeProject string   `json:"compose_project,omitempty"`
+	ComposeService string   `json:"compose_service,omitempty"`
+	Ports          []string `json:"ports,omitempty"`      // published/exposed port mappings, e.g. "0.0.0.0:8080->80/tcp"
+	CreatedAt      int64    `json:"created_at,omitempty"` // unix seconds the container was created
+
+	// Live resource usage from `docker stats` (running containers only),
+	// mirroring [Service]. CPUPercent is a pointer so a genuine 0% (an idle
+	// container) is distinct from "unknown" (nil — not running, or the first
+	// sample with no prior reading to delta against).
+	CPUPercent    *float64 `json:"cpu_percent,omitempty"`
+	MemUsageBytes int64    `json:"mem_usage_bytes,omitempty"`
+	MemLimitBytes int64    `json:"mem_limit_bytes,omitempty"`
+}
+
 // Event is a single docker-side failure signal. The kind is the product —
 // "why", not just "down".
 type Event struct {
@@ -203,6 +244,52 @@ type LogExcerpt struct {
 // Heartbeat is emitted every HeartbeatInterval and doubles as liveness.
 type Heartbeat struct {
 	Uptime int64 `json:"uptime_seconds,omitempty"`
+}
+
+// HostMetrics is a periodic sample of whole-host resource utilization, read by
+// the agent from the host's own /proc and /sys — the machine, NOT the sum of
+// containers (the latter is per-Service CPUPercent/MemUsageBytes). In a normal
+// Linux container the system-wide /proc files are the host's, so the agent reads
+// true host utilization with no extra mounts; on Docker Desktop they reflect the
+// LinuxKit VM, and on platforms without sensors temperature is simply absent.
+//
+// Every field is optional and best-effort: an agent that cannot read a sensor
+// (old agent, no thermal zone, restricted /sys) omits it and the cloud stores it
+// as NULL. Like the other agent->cloud frames it is descriptive metadata only —
+// no exec surface — and ProtocolVersion stays 1.
+type HostMetrics struct {
+	// CPUPercent is utilization across all cores, 0..100 (NOT summed-per-core
+	// like a container's CPUPercent). A pointer so a genuine 0% (an idle host) is
+	// distinct from "not sampled" (nil — the first sample, with no prior
+	// /proc/stat reading to delta against).
+	CPUPercent *float64 `json:"cpu_percent,omitempty"`
+
+	// Memory, derived from /proc/meminfo. Used is Total-Available (the kernel's
+	// own estimate, which discounts reclaimable cache) so it reflects real
+	// pressure, not raw "used". Bytes; zero only when unsampled.
+	MemTotalBytes  int64 `json:"mem_total_bytes,omitempty"`
+	MemUsedBytes   int64 `json:"mem_used_bytes,omitempty"`
+	SwapTotalBytes int64 `json:"swap_total_bytes,omitempty"` // 0 ⇒ no swap configured
+	SwapUsedBytes  int64 `json:"swap_used_bytes,omitempty"`
+
+	// Load averages from /proc/loadavg (1/5/15 min). Pointers so a genuine 0.0
+	// (idle) is distinct from "not sampled".
+	Load1  *float64 `json:"load1,omitempty"`
+	Load5  *float64 `json:"load5,omitempty"`
+	Load15 *float64 `json:"load15,omitempty"`
+
+	// Temperatures from /sys/class/thermal + /sys/class/hwmon, best-effort and
+	// often absent (VMs, Docker Desktop). TempMaxC is the hottest reading across
+	// all zones — the single number worth a glance; Temps carries the labeled
+	// per-zone detail when available.
+	TempMaxC *float64      `json:"temp_max_c,omitempty"`
+	Temps    []TempReading `json:"temps,omitempty"`
+}
+
+// TempReading is one labeled temperature sensor reading, in degrees Celsius.
+type TempReading struct {
+	Label   string  `json:"label"`
+	Celsius float64 `json:"celsius"`
 }
 
 // ---------------------------------------------------------------------------

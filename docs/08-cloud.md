@@ -41,6 +41,7 @@ services:
 When enabled, the agent reports metadata only:
 
 - Periodic snapshots of DockTail-managed services, including stopped containers, plus refreshes after successful reconciles.
+- A read-only inventory of the host's **other** containers — the ones *not* published with `docktail.*` labels, including stopped ones — with name, image, state/health, ports, and live CPU/memory. This is metadata only: these containers are never health-checked, probed, or alerted on; they are listed on the dashboard so you can see the host's whole Docker footprint, not just published services.
 - Docker failure events, including container exit codes, out-of-memory (OOM) kills, health-status changes, and restart loops.
 - Local-vantage check results. Checks default to TCP; HTTP checks run only when pushed from cloud-managed config.
 - Incident log excerpts. Capture is on by default for down-signal events, capped agent-side, and can be disabled globally or per service from the cloud dashboard.
