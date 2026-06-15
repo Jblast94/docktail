@@ -398,12 +398,11 @@ func (c *Client) monitorTarget(ctx context.Context, cctx *containerCtx, containe
 	}
 }
 
-// sharesNetworkWith reports whether the agent's own container is attached to any
-// of the same docker networks as target, i.e. whether the agent can reach
-// target at its own network IP. Network IDs the agent is attached to are
-// resolved once and cached. Returns false when the agent isn't a resolvable
-// container (bare-metal / host netns) — callers treat that case via the gateway.
-func (c *Client) sharesNetworkWith(ctx context.Context, target container.InspectResponse) bool {
+// ensureSelfNetIDs populates, at most once, the set of docker network IDs the
+// agent's own container is attached to. It is best-effort: the set stays empty
+// when the agent isn't a resolvable container (bare-metal / host netns), in
+// which case callers fall back to network-agnostic behaviour.
+func (c *Client) ensureSelfNetIDs(ctx context.Context) {
 	c.selfNetOnce.Do(func() {
 		inspect, ok := c.inspectSelf(ctx, ownContainerID())
 		if !ok || inspect.NetworkSettings == nil {
@@ -416,6 +415,15 @@ func (c *Client) sharesNetworkWith(ctx context.Context, target container.Inspect
 			}
 		}
 	})
+}
+
+// sharesNetworkWith reports whether the agent's own container is attached to any
+// of the same docker networks as target, i.e. whether the agent can reach
+// target at its own network IP. Network IDs the agent is attached to are
+// resolved once and cached. Returns false when the agent isn't a resolvable
+// container (bare-metal / host netns) — callers treat that case via the gateway.
+func (c *Client) sharesNetworkWith(ctx context.Context, target container.InspectResponse) bool {
+	c.ensureSelfNetIDs(ctx)
 	if len(c.selfNetIDs) == 0 || target.NetworkSettings == nil {
 		return false
 	}
@@ -977,21 +985,53 @@ func (c *Client) getContainerIP(inspect container.InspectResponse, specifiedNetw
 		return "", "", fmt.Errorf("container '%s' is not connected to network '%s' (available: %v)", containerName, specifiedNetwork, getNetworkNames(networks))
 	}
 
-	// No network specified - try common defaults then fall back to first available
-	// Priority: bridge > first available
+	// No network specified. Iterate in a stable (sorted) order rather than the
+	// random Go map order, and prefer a network the agent's own container also
+	// sits on so the resolved IP is actually reachable from the agent. A
+	// multi-homed target otherwise gets an arbitrary IP that flips run to run;
+	// dialing an address on a network the agent isn't attached to hits the
+	// asymmetric-routing trap — the SYN leaves via the host gateway but the
+	// target replies from its other interface, so the handshake never completes
+	// and the local check times out at random. Priority: shared network >
+	// bridge > first available.
+	names := make([]string, 0, len(networks))
+	for name := range networks {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	c.ensureSelfNetIDs(context.Background())
+	if len(c.selfNetIDs) > 0 {
+		for _, name := range names {
+			network := networks[name]
+			if network.IPAddress == "" {
+				continue
+			}
+			if _, ok := c.selfNetIDs[network.NetworkID]; ok {
+				log.Debug().
+					Str("container", containerName).
+					Str("network", name).
+					Str("ip", network.IPAddress).
+					Msg("Using network shared with the agent for direct mode")
+				return network.IPAddress, name, nil
+			}
+		}
+	}
+
+	// No shared network (or the agent isn't containerised): bridge > first available.
 	if network, ok := networks["bridge"]; ok && network.IPAddress != "" {
 		return network.IPAddress, "bridge", nil
 	}
 
-	// Fall back to first available network with an IP
-	for networkName, network := range networks {
+	for _, name := range names {
+		network := networks[name]
 		if network.IPAddress != "" {
 			log.Debug().
 				Str("container", containerName).
-				Str("network", networkName).
+				Str("network", name).
 				Str("ip", network.IPAddress).
 				Msg("Using first available network for direct mode")
-			return network.IPAddress, networkName, nil
+			return network.IPAddress, name, nil
 		}
 	}
 
