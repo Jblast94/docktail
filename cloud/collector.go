@@ -59,6 +59,10 @@ type Collector struct {
 	statsMu      sync.Mutex           // guards prevCPU + prevCPUOther
 	prevCPU      map[string]cpuSample // last CPU counters per service container, for % deltas
 	prevCPUOther map[string]cpuSample // same, for non-docktail containers (kept separate so neither prunes the other)
+
+	hostMx         *hostMetricsReader // whole-host /proc + /sys vitals reader
+	hostMetricsCap bool               // host CPU/mem readable here → advertise + run metricsLoop
+	hostTempCap    bool               // temperature sensors detected → advertise host_temp
 }
 
 // cpuSample is the previous CPU counter reading kept per container. Docker
@@ -86,19 +90,23 @@ func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, logger zer
 	if err != nil {
 		return nil, err
 	}
+	hmr := newHostMetricsReader()
 	return &Collector{
-		cfg:           cfg,
-		docker:        dc,
-		log:           logger,
-		checker:       newChecker(),
-		fingerprint:   fp,
-		hostname:      dc.Hostname(ctx),
-		dockerVersion: dc.ServerVersion(ctx),
-		specs:         dc.HostSpecs(ctx),
-		logOverrides:  map[string]string{},
-		checkFails:    map[string]int{},
-		prevCPU:       map[string]cpuSample{},
-		prevCPUOther:  map[string]cpuSample{},
+		cfg:            cfg,
+		docker:         dc,
+		log:            logger,
+		checker:        newChecker(),
+		fingerprint:    fp,
+		hostname:       dc.Hostname(ctx),
+		dockerVersion:  dc.ServerVersion(ctx),
+		specs:          dc.HostSpecs(ctx),
+		logOverrides:   map[string]string{},
+		checkFails:     map[string]int{},
+		prevCPU:        map[string]cpuSample{},
+		prevCPUOther:   map[string]cpuSample{},
+		hostMx:         hmr,
+		hostMetricsCap: hmr.available(),
+		hostTempCap:    hmr.tempAvailable(),
 	}, nil
 }
 
@@ -672,6 +680,9 @@ func (c *Collector) session(ctx context.Context, bo *backoff) (stop bool) {
 	go c.discoverLoop(connCtx, conn)
 	go c.heartbeatLoop(connCtx, conn)
 	go c.checkLoop(connCtx, conn)
+	if c.hostMetricsCap {
+		go c.metricsLoop(connCtx, conn)
+	}
 
 	err = <-runDone
 	c.clearConn(conn)
@@ -692,6 +703,38 @@ func (c *Collector) heartbeatLoop(ctx context.Context, conn *wsConn) {
 			c.send(conn, proto.TypeHeartbeat, proto.Heartbeat{Uptime: conn.uptime()})
 		}
 	}
+}
+
+// metricsLoop samples whole-host vitals from /proc and /sys on the heartbeat
+// cadence and sends a host_metrics frame. Started only when the host_metrics
+// capability is available; stays silent while unmonitored (the cloud drops the
+// frame anyway).
+func (c *Collector) metricsLoop(ctx context.Context, conn *wsConn) {
+	ticker := time.NewTicker(proto.HeartbeatInterval * time.Second)
+	defer ticker.Stop()
+	c.sampleAndSendMetrics(conn)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.sampleAndSendMetrics(conn)
+		}
+	}
+}
+
+func (c *Collector) sampleAndSendMetrics(conn *wsConn) {
+	// Always sample so the CPU-delta baseline stays fresh even while unmonitored;
+	// only the send is gated (the cloud drops host_metrics for unmonitored hosts),
+	// so the first sample after a promotion isn't averaged over the whole gap.
+	m := c.hostMx.sample()
+	c.mu.RLock()
+	unmonitored := c.unmonitored
+	c.mu.RUnlock()
+	if unmonitored {
+		return
+	}
+	c.send(conn, proto.TypeHostMetrics, m)
 }
 
 func (c *Collector) checkLoop(ctx context.Context, conn *wsConn) {
@@ -862,13 +905,20 @@ func (c *Collector) buildContainers(ctx context.Context, containers []docker.Oth
 // ---- helpers -------------------------------------------------------------
 
 func (c *Collector) sendHello(conn *wsConn) bool {
+	caps := []string{"http_checks", "log_capture", "container_stats", "container_inventory"}
+	if c.hostMetricsCap {
+		caps = append(caps, "host_metrics")
+	}
+	if c.hostTempCap {
+		caps = append(caps, "host_temp")
+	}
 	hello := proto.Hello{
 		ProtocolVersion: proto.ProtocolVersion,
 		Fingerprint:     c.fingerprint,
 		Hostname:        c.hostname,
 		AgentVersion:    agentVersion,
 		DockerVersion:   c.dockerVersion,
-		Capabilities:    []string{"http_checks", "log_capture", "container_stats", "container_inventory"},
+		Capabilities:    caps,
 		OS:              c.specs.OS,
 		KernelVersion:   c.specs.KernelVersion,
 		Arch:            c.specs.Arch,
