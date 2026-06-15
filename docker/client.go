@@ -346,20 +346,22 @@ func (c *Client) monitorTarget(ctx context.Context, cctx *containerCtx, containe
 	case cctx.isNoNetwork:
 		// No address to probe.
 		return "", ""
-	case cctx.isDirectMode:
-		// IPAddress/TargetPort already point at the container's own network IP,
-		// reachable from the agent's container; no override needed.
-		return "", ""
 	case cctx.isHostNetwork:
-		// The serve destination is 127.0.0.1:<port> — correct for tailscaled (host
-		// netns) but the agent's own container loopback otherwise. Probe the host
-		// via its docker-network gateway instead. Empty ⇒ the agent itself shares
-		// the host netns, so 127.0.0.1 is already correct: fall back to it.
+		// Checked before isDirectMode: a host-network container is "direct" by
+		// default (no docktail.service.direct=false label), but its serve
+		// destination is 127.0.0.1:<port> — correct for tailscaled (host netns) yet
+		// the agent's own container loopback otherwise. Probe the host via its
+		// docker-network gateway instead. Empty ⇒ the agent itself shares the host
+		// netns, so 127.0.0.1 is already correct: fall back to it.
 		gw := c.hostGatewayIP(ctx)
 		if gw == "" {
 			return "", ""
 		}
 		return gw, containerPort
+	case cctx.isDirectMode:
+		// IPAddress/TargetPort already point at the container's own network IP,
+		// reachable from the agent's container; no override needed.
+		return "", ""
 	default:
 		// Published-port mode: the serve destination is a host-relative
 		// 127.0.0.1:<hostPort> the agent can't reach from inside its container, so
