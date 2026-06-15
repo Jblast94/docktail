@@ -48,6 +48,12 @@ type Client struct {
 	// inside the agent's own container (see hostGatewayIP). Resolved at most once.
 	gatewayOnce sync.Once
 	gatewayIP   string
+
+	// selfNetIDs caches the docker network IDs the agent's own container is
+	// attached to, used to decide whether a target container is reachable at its
+	// own network IP (see sharesNetworkWith). Resolved at most once.
+	selfNetOnce sync.Once
+	selfNetIDs  map[string]struct{}
 }
 
 // NewClient creates a new Docker client
@@ -342,11 +348,11 @@ func (c *Client) resolveDestPort(cctx *containerCtx, targetPort string) (string,
 // containerPort is the container's own port (the docktail.service[.N].port label).
 // This does NOT affect tailscale serve, which keeps using IPAddress/TargetPort.
 func (c *Client) monitorTarget(ctx context.Context, cctx *containerCtx, containerPort string) (string, string) {
-	switch {
-	case cctx.isNoNetwork:
+	if cctx.isNoNetwork {
 		// No address to probe.
 		return "", ""
-	case cctx.isHostNetwork:
+	}
+	if cctx.isHostNetwork {
 		// Checked before isDirectMode: a host-network container is "direct" by
 		// default (no docktail.service.direct=false label), but its serve
 		// destination is 127.0.0.1:<port> — correct for tailscaled (host netns) yet
@@ -358,6 +364,24 @@ func (c *Client) monitorTarget(ctx context.Context, cctx *containerCtx, containe
 			return "", ""
 		}
 		return gw, containerPort
+	}
+
+	// Direct/published-port modes target the container's own network IP, which the
+	// agent can reach only if it shares a docker network with the container. When
+	// it doesn't — e.g. a service isolated behind a VPN sidecar (qbittorrent via
+	// gluetun) on its own compose network — fall back to the container's published
+	// host port reached via the agent's docker-network gateway. An empty gateway
+	// means the agent shares the host netns and already reaches container IPs, so
+	// only override for a containerised agent.
+	if !c.sharesNetworkWith(ctx, cctx.inspect) {
+		if gw := c.hostGatewayIP(ctx); gw != "" {
+			if hp := publishedHostPort(cctx.inspect, containerPort); hp != "" {
+				return gw, hp
+			}
+		}
+	}
+
+	switch {
 	case cctx.isDirectMode:
 		// IPAddress/TargetPort already point at the container's own network IP,
 		// reachable from the agent's container; no override needed.
@@ -372,6 +396,57 @@ func (c *Client) monitorTarget(ctx context.Context, cctx *containerCtx, containe
 		}
 		return ip, containerPort
 	}
+}
+
+// sharesNetworkWith reports whether the agent's own container is attached to any
+// of the same docker networks as target, i.e. whether the agent can reach
+// target at its own network IP. Network IDs the agent is attached to are
+// resolved once and cached. Returns false when the agent isn't a resolvable
+// container (bare-metal / host netns) — callers treat that case via the gateway.
+func (c *Client) sharesNetworkWith(ctx context.Context, target container.InspectResponse) bool {
+	c.selfNetOnce.Do(func() {
+		inspect, ok := c.inspectSelf(ctx, ownContainerID())
+		if !ok || inspect.NetworkSettings == nil {
+			return
+		}
+		c.selfNetIDs = make(map[string]struct{}, len(inspect.NetworkSettings.Networks))
+		for _, n := range inspect.NetworkSettings.Networks {
+			if n.NetworkID != "" {
+				c.selfNetIDs[n.NetworkID] = struct{}{}
+			}
+		}
+	})
+	if len(c.selfNetIDs) == 0 || target.NetworkSettings == nil {
+		return false
+	}
+	for _, n := range target.NetworkSettings.Networks {
+		if n.NetworkID == "" {
+			continue
+		}
+		if _, ok := c.selfNetIDs[n.NetworkID]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// publishedHostPort returns the host port a container publishes for the given
+// container port (tcp), or "" if the port isn't published. This is the address
+// reachable on the host (and thus via the docker host gateway) regardless of
+// which docker network the container sits on.
+func publishedHostPort(inspect container.InspectResponse, containerPort string) string {
+	key := nat.Port(fmt.Sprintf("%s/tcp", containerPort))
+	if inspect.HostConfig != nil && inspect.HostConfig.PortBindings != nil {
+		if b, ok := inspect.HostConfig.PortBindings[key]; ok && len(b) > 0 && b[0].HostPort != "" {
+			return b[0].HostPort
+		}
+	}
+	if inspect.NetworkSettings != nil && inspect.NetworkSettings.Ports != nil {
+		if b, ok := inspect.NetworkSettings.Ports[key]; ok && len(b) > 0 && b[0].HostPort != "" {
+			return b[0].HostPort
+		}
+	}
+	return ""
 }
 
 // hostGatewayIP returns an address the agent can use to reach services running in
