@@ -18,6 +18,7 @@ const (
 	TypeLogExcerpt   MessageType = "log_excerpt"   // last N lines on incident (on by default)
 	TypeHeartbeat    MessageType = "heartbeat"     // liveness, every HeartbeatInterval
 	TypeHostMetrics  MessageType = "host_metrics"  // periodic whole-host resource vitals
+	TypeTailnet      MessageType = "tailnet"       // local netmap view: peer device liveness
 )
 
 // Cloud -> Agent message types.
@@ -292,6 +293,30 @@ type TempReading struct {
 	Celsius float64 `json:"celsius"`
 }
 
+// TailnetReport carries the agent's view of its local tailscale netmap: the
+// online/offline status of the tailnet devices (peers) it can see, read from
+// `tailscale status` over the local daemon (no API key). It is the signal the
+// cloud uses to split a silent host into agent_down (the device is still up on
+// the tailnet, only the agent process died) vs host_down (the whole host is
+// gone): a peer's report of a now-silent host's device is the only external
+// liveness signal available. Additive and metadata-only — no exec surface — and
+// ProtocolVersion stays 1. Emitted only when the host is on a tailnet; absent ⇒
+// the tailnet vantage degrades to not_configured exactly as before.
+type TailnetReport struct {
+	Peers []TailnetPeer `json:"peers"`
+}
+
+// TailnetPeer is one tailnet device as seen in this host's netmap. NodeID is the
+// tailscale StableNodeID, matched against hosts.tailscale_node_id on the cloud
+// side. Online is the live reachability the coordination server reports;
+// LastSeen (unix ms) is when the peer was last seen, set only when offline.
+type TailnetPeer struct {
+	NodeID   string `json:"node_id"`
+	Hostname string `json:"hostname,omitempty"`
+	Online   bool   `json:"online"`
+	LastSeen int64  `json:"last_seen,omitempty"`
+}
+
 // ---------------------------------------------------------------------------
 // Cloud -> Agent
 // ---------------------------------------------------------------------------
@@ -376,8 +401,9 @@ const (
 	ClassRefused    = "refused"
 	ClassTLS        = "tls"
 	ClassHTTP5xx    = "http_5xx"
-	ClassACLBlocked = "acl_blocked"
-	ClassContainer  = "container" // local down -> container problem
+	ClassACLBlocked = "acl_blocked" // reserved for the deferred Control-API ACL audit; not produced by the netmap vantage
+	ClassServe      = "serve"       // tailnet vantage: service is up locally but not published via `tailscale serve`
+	ClassContainer  = "container"   // local down -> container problem
 )
 
 // Caps for log capture (also enforced agent-side).

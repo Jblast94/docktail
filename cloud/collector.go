@@ -39,6 +39,7 @@ type Collector struct {
 	docker  *docker.Client
 	log     zerolog.Logger
 	checker *checker
+	tailnet tailnetSource // local netmap reader (serve state + peer liveness); nil ⇒ no tailnet vantage
 
 	fingerprint   string
 	hostname      string
@@ -84,8 +85,10 @@ type containerStats struct {
 
 // NewCollector builds a Collector, reading the host fingerprint (docker engine
 // ID) and versions up front. Returns an error only if the engine ID can't be
-// read — without it there is no stable host identity.
-func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, logger zerolog.Logger) (*Collector, error) {
+// read — without it there is no stable host identity. ts is the local tailscale
+// daemon reader used to source the tailnet vantage from the host's own netmap;
+// pass nil (or a client with no tailnet) to run without the tailnet vantage.
+func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, ts tailnetSource, logger zerolog.Logger) (*Collector, error) {
 	fp, err := dc.EngineID(ctx)
 	if err != nil {
 		return nil, err
@@ -96,6 +99,7 @@ func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, logger zer
 		docker:         dc,
 		log:            logger,
 		checker:        newChecker(),
+		tailnet:        ts,
 		fingerprint:    fp,
 		hostname:       dc.Hostname(ctx),
 		dockerVersion:  dc.ServerVersion(ctx),
@@ -261,9 +265,9 @@ func (c *Collector) pruneStatsMap(present map[string]struct{}, prevCPU map[strin
 }
 
 // toService maps a reconciler ContainerService + docker enrichment onto the wire
-// Service. FQDN is intentionally left empty in v1: the agent does not reliably
-// know the tailnet MagicDNS domain, so the cloud prober populates the tailnet
-// vantage and FQDN.
+// Service. FQDN is left empty: the tailnet vantage is sourced from the host's own
+// `tailscale serve` config (see tailnet.go), keyed by service name + port, so the
+// cloud does not need the MagicDNS domain to classify serve state.
 func toService(cs *apptypes.ContainerService, info docker.CloudInfo, stats containerStats) proto.Service {
 	svc := proto.Service{
 		Key:            serviceKeyForContainerService(cs),
@@ -636,7 +640,7 @@ func (c *Collector) session(ctx context.Context, bo *backoff) (stop bool) {
 	runDone := make(chan error, 1)
 	go func() { runDone <- conn.run(connCtx, h) }()
 
-	if !c.sendHello(conn) {
+	if !c.sendHello(connCtx, conn) {
 		connCancel()
 		<-runDone
 		return false
@@ -682,6 +686,9 @@ func (c *Collector) session(ctx context.Context, bo *backoff) (stop bool) {
 	go c.checkLoop(connCtx, conn)
 	if c.hostMetricsCap {
 		go c.metricsLoop(connCtx, conn)
+	}
+	if c.tailnet != nil {
+		go c.tailnetLoop(connCtx, conn)
 	}
 
 	err = <-runDone
@@ -763,14 +770,25 @@ func (c *Collector) runChecks(ctx context.Context, conn *wsConn) {
 		return
 	}
 	results := c.checker.run(ctx, services, configs)
-	if len(results) == 0 {
+	// Tailnet-vantage results from the host's own `tailscale serve` config (the
+	// netmap-sourced vantage — no credentials). nil when there is no tailnet, so
+	// the cloud leaves the tailnet vantage not_configured.
+	tnResults := c.tailnetResults(ctx, services)
+	frame := results
+	if len(tnResults) > 0 {
+		frame = make([]proto.CheckResult, 0, len(results)+len(tnResults))
+		frame = append(frame, results...)
+		frame = append(frame, tnResults...)
+	}
+	if len(frame) == 0 {
 		return
 	}
-	c.send(conn, proto.TypeCheckResults, proto.CheckResults{Results: results})
-	c.log.Debug().Int("results", len(results)).Msg("cloud: check results sent")
+	c.send(conn, proto.TypeCheckResults, proto.CheckResults{Results: frame})
+	c.log.Debug().Int("results", len(results)).Int("tailnet_results", len(tnResults)).Msg("cloud: check results sent")
 	// Capture logs for services that just crossed the down-debounce edge — the
 	// probe-driven counterpart to maybeCaptureLogs. Sent after check_results so
-	// the excerpt lands once the cloud has opened the incident.
+	// the excerpt lands once the cloud has opened the incident. Local results
+	// only: a not-published tailnet result must not inflate the local fail streak.
 	c.captureOnCheckFailures(ctx, conn, services, results)
 }
 
@@ -904,7 +922,7 @@ func (c *Collector) buildContainers(ctx context.Context, containers []docker.Oth
 
 // ---- helpers -------------------------------------------------------------
 
-func (c *Collector) sendHello(conn *wsConn) bool {
+func (c *Collector) sendHello(ctx context.Context, conn *wsConn) bool {
 	caps := []string{"http_checks", "log_capture", "container_stats", "container_inventory"}
 	if c.hostMetricsCap {
 		caps = append(caps, "host_metrics")
@@ -915,6 +933,7 @@ func (c *Collector) sendHello(conn *wsConn) bool {
 	hello := proto.Hello{
 		ProtocolVersion: proto.ProtocolVersion,
 		Fingerprint:     c.fingerprint,
+		TailscaleNodeID: c.tailnetSelfID(ctx),
 		Hostname:        c.hostname,
 		AgentVersion:    agentVersion,
 		DockerVersion:   c.dockerVersion,

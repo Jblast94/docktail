@@ -19,8 +19,8 @@ import (
 // doesn't reject the connection.
 func (c *Client) tailscaleCmd(ctx context.Context, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, "tailscale", args...)
-	if c.serverVersion != "" {
-		cmd.Env = append(os.Environ(), "TS_DEBUG_FAKE_IPC_VERSION="+c.serverVersion)
+	if sv := c.getServerVersion(); sv != "" {
+		cmd.Env = append(os.Environ(), "TS_DEBUG_FAKE_IPC_VERSION="+sv)
 	}
 	return cmd
 }
@@ -41,27 +41,27 @@ func (c *Client) DetectVersionMismatch(ctx context.Context) {
 
 	if !strings.Contains(outStr, "!= tailscaled server version") {
 		// Clear stale override so normal matched-version setups use default behavior.
-		if c.serverVersion != "" {
+		if prev := c.getServerVersion(); prev != "" {
 			log.Info().
-				Str("previous_server_version", c.serverVersion).
+				Str("previous_server_version", prev).
 				Msg("Tailscale CLI/daemon versions now aligned; disabling TS_DEBUG_FAKE_IPC_VERSION override")
-			c.serverVersion = ""
+			c.setServerVersion("")
 		}
 		return
 	}
 
 	matches := versionMismatchRe.FindStringSubmatch(outStr)
 	if len(matches) < 2 {
-		c.serverVersion = ""
+		c.setServerVersion("")
 		log.Warn().
 			Str("output", outStr).
 			Msg("Detected tailscale version mismatch but could not parse server version")
 		return
 	}
 
-	c.serverVersion = matches[1]
+	c.setServerVersion(matches[1])
 	log.Info().
-		Str("server_version", c.serverVersion).
+		Str("server_version", matches[1]).
 		Msg("Tailscale CLI/daemon version mismatch detected; will use TS_DEBUG_FAKE_IPC_VERSION for CLI calls")
 }
 

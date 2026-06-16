@@ -21,8 +21,9 @@ const (
 	httpTimeout = 5 * time.Second
 )
 
-// checker runs local-vantage probes. The agent only ever produces the "local"
-// vantage; the cloud prober contributes "tailnet" and a public probe "public".
+// checker runs local-vantage probes. The checker only produces the "local"
+// vantage; the collector contributes "tailnet" from the host's `tailscale serve`
+// config (see tailnet.go) and a public probe would contribute "public".
 type checker struct {
 	httpClient *http.Client
 }

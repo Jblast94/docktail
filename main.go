@@ -107,7 +107,7 @@ func main() {
 	// DOCKTAIL_CLOUD_KEY is set — DockTail runs exactly as before without it.
 	if cloud.Enabled() {
 		cloudCfg := cloud.LoadConfig()
-		collector, cerr := cloud.NewCollector(ctx, cloudCfg, dockerClient, log.Logger)
+		collector, cerr := cloud.NewCollector(ctx, cloudCfg, dockerClient, tailscaleClient, log.Logger)
 		if cerr != nil {
 			log.Error().Err(cerr).Msg("DockTail Cloud enabled but failed to initialize; continuing without it")
 		} else {

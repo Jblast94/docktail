@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -24,9 +25,25 @@ type Client struct {
 	baseURL         string
 	httpClient      *http.Client
 	apiSyncEnabled  bool
-	serverVersion   string // set when CLI/daemon version mismatch detected
+	mu              sync.RWMutex // guards serverVersion (read by tailscaleCmd, written by DetectVersionMismatch)
+	serverVersion   string       // set when CLI/daemon version mismatch detected
 	managedFunnels  map[string]struct{}
 	ignoredServices map[string]struct{}
+}
+
+// setServerVersion / getServerVersion guard serverVersion so the DockTail Cloud
+// collector can call read-only CLI commands (serve status, status) concurrently
+// with the reconciler's DetectVersionMismatch without a data race.
+func (c *Client) setServerVersion(v string) {
+	c.mu.Lock()
+	c.serverVersion = v
+	c.mu.Unlock()
+}
+
+func (c *Client) getServerVersion() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.serverVersion
 }
 
 // ClientConfig holds configuration for creating a Tailscale client
