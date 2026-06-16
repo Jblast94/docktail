@@ -64,6 +64,7 @@ type Collector struct {
 	hostMx         *hostMetricsReader // whole-host /proc + /sys vitals reader
 	hostMetricsCap bool               // host CPU/mem readable here → advertise + run metricsLoop
 	hostTempCap    bool               // temperature sensors detected → advertise host_temp
+	loadNodeScoped bool               // /proc loadavg is the physical node's, not this CT's → don't report it
 }
 
 // cpuSample is the previous CPU counter reading kept per container. Docker
@@ -94,7 +95,8 @@ func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, ts tailnet
 		return nil, err
 	}
 	hmr := newHostMetricsReader()
-	return &Collector{
+	specs := dc.HostSpecs(ctx)
+	c := &Collector{
 		cfg:            cfg,
 		docker:         dc,
 		log:            logger,
@@ -103,7 +105,7 @@ func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, ts tailnet
 		fingerprint:    fp,
 		hostname:       dc.Hostname(ctx),
 		dockerVersion:  dc.ServerVersion(ctx),
-		specs:          dc.HostSpecs(ctx),
+		specs:          specs,
 		logOverrides:   map[string]string{},
 		checkFails:     map[string]int{},
 		prevCPU:        map[string]cpuSample{},
@@ -111,7 +113,18 @@ func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, ts tailnet
 		hostMx:         hmr,
 		hostMetricsCap: hmr.available(),
 		hostTempCap:    hmr.tempAvailable(),
-	}, nil
+	}
+	// On a Proxmox LXC the agent's /proc is the physical node's, so loadavg is the
+	// whole node's load — meaningless against the CT's (smaller) core count, where
+	// it reads as a permanent >100% even on an idle container. Detect that by
+	// comparing the node's logical CPUs (/proc/stat) against docker's NCPU (the
+	// CT's cores); when the node has more, this host's loadavg isn't the CT's, so
+	// suppress it (the cloud then shows "—" instead of a misleading ratio). The
+	// CT's own load isn't readable from inside the nested container.
+	if specs.CPUCores > 0 && physicalCPUCount() > specs.CPUCores {
+		c.loadNodeScoped = true
+	}
+	return c, nil
 }
 
 // Fingerprint is the docker engine ID used as the host identity.
@@ -735,6 +748,11 @@ func (c *Collector) sampleAndSendMetrics(conn *wsConn) {
 	// only the send is gated (the cloud drops host_metrics for unmonitored hosts),
 	// so the first sample after a promotion isn't averaged over the whole gap.
 	m := c.hostMx.sample()
+	// On a Proxmox LXC the sampled loadavg is the physical node's, not the CT's, so
+	// drop it rather than report a node load against the container's core count.
+	if c.loadNodeScoped {
+		m.Load1, m.Load5, m.Load15 = nil, nil, nil
+	}
 	c.mu.RLock()
 	unmonitored := c.unmonitored
 	c.mu.RUnlock()

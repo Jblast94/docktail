@@ -153,6 +153,29 @@ func readCPUJiffies() (cpuJiffies, bool) {
 	return cpuJiffies{}, false
 }
 
+// physicalCPUCount counts the per-core "cpuN" lines in /proc/stat — the number of
+// logical CPUs the kernel that owns this /proc has. Inside a Proxmox LXC the
+// agent's /proc is the physical NODE's, so this is the node's core count, which
+// exceeds the CT's docker-reported cores; the collector uses that gap to tell
+// node-scoped loadavg from the container's. Returns 0 on any read error.
+func physicalCPUCount() int {
+	f, err := os.Open(filepath.Join(procDir, "stat"))
+	if err != nil {
+		return 0
+	}
+	defer func() { _ = f.Close() }()
+
+	n := 0
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := sc.Text()
+		if len(line) > 3 && line[:3] == "cpu" && line[3] >= '0' && line[3] <= '9' {
+			n++
+		}
+	}
+	return n
+}
+
 // cpuPercent computes utilization between two cumulative readings, clamped to
 // 0..100. ok is false when the counter did not advance (or went backwards).
 func cpuPercent(prev, cur cpuJiffies) (float64, bool) {
