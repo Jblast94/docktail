@@ -90,7 +90,7 @@ func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, logger zer
 	if err != nil {
 		return nil, err
 	}
-	hmr := newHostMetricsReader()
+	hmr := newHostMetricsReader(cfg)
 	return &Collector{
 		cfg:            cfg,
 		docker:         dc,

@@ -47,8 +47,14 @@ type cpuJiffies struct {
 }
 
 // newHostMetricsReader builds a reader and probes once whether temperature
-// sensors are readable, so the agent can advertise a matching capability.
-func newHostMetricsReader() *hostMetricsReader {
+// sensors are readable, so the agent can advertise a matching capability. It
+// first applies any host-path overrides (DOCKTAIL_HOST_PROC / DOCKTAIL_HOST_SYS)
+// so the temp probe — and every later read — honors them. The override exists
+// for Proxmox LXC hosts, where the container's own /proc bypasses LXCFS and
+// reports the physical node; bind-mounting the LXCFS files to an alternate path
+// and pointing here makes vitals reflect the container (see config.go).
+func newHostMetricsReader(cfg Config) *hostMetricsReader {
+	procDir, sysDir = cfg.HostProc, cfg.HostSys
 	r := &hostMetricsReader{}
 	if _, list := readTemps(); len(list) > 0 {
 		r.readTemps = true

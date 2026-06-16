@@ -33,12 +33,23 @@ const (
 	EnvURL         = "DOCKTAIL_CLOUD_URL"
 	EnvLogLevel    = "DOCKTAIL_LOG_LEVEL"
 	EnvCheckPeriod = "DOCKTAIL_CHECK_INTERVAL"
+	// EnvHostProc / EnvHostSys redirect where whole-host vitals are read from
+	// (default /proc and /sys). The agent normally reads the host's own,
+	// non-namespaced /proc with no extra mounts. The exception is a Proxmox LXC:
+	// the container's /proc bypasses the LXC's LXCFS layer and reports the
+	// physical node instead of the container, so memory/CPU/load are wrong. On
+	// such hosts, bind-mount the LXCFS files (/proc/{meminfo,stat,loadavg}) to an
+	// alternate path and point these here. See docs/agent.md "Host vitals".
+	EnvHostProc = "DOCKTAIL_HOST_PROC"
+	EnvHostSys  = "DOCKTAIL_HOST_SYS"
 )
 
 // Defaults.
 const (
 	DefaultCheckInterval = 30 * time.Second
 	DefaultLogLevel      = "info"
+	DefaultHostProc      = "/proc"
+	DefaultHostSys       = "/sys"
 )
 
 // Config is the resolved cloud-module configuration.
@@ -47,6 +58,8 @@ type Config struct {
 	URL           string        // WSS ingest endpoint.
 	LogLevel      string        // zerolog level name (informational; main owns logging).
 	CheckInterval time.Duration // how often local-vantage checks run.
+	HostProc      string        // path to read whole-host /proc vitals from (default /proc).
+	HostSys       string        // path to read whole-host /sys vitals from (default /sys).
 }
 
 // LoadConfig reads the cloud configuration from the environment, applying
@@ -57,6 +70,8 @@ func LoadConfig() Config {
 		URL:           getEnv(EnvURL, proto.DefaultEndpoint),
 		LogLevel:      getEnv(EnvLogLevel, DefaultLogLevel),
 		CheckInterval: getEnvDuration(EnvCheckPeriod, DefaultCheckInterval),
+		HostProc:      getEnv(EnvHostProc, DefaultHostProc),
+		HostSys:       getEnv(EnvHostSys, DefaultHostSys),
 	}
 }
 

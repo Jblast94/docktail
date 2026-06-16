@@ -35,6 +35,27 @@ services:
 | `DOCKTAIL_CLOUD_KEY` | - | Workspace key (`dtc_...`) from the cloud dashboard. Enables reporting. Inert when unset. |
 | `DOCKTAIL_LOG_LEVEL` | `info` | Log level for the cloud module: `debug`, `info`, `warn`, or `error`. |
 | `DOCKTAIL_CHECK_INTERVAL` | `30s` | How often local-vantage checks run. |
+| `DOCKTAIL_HOST_PROC` | `/proc` | Where whole-host vitals (CPU/memory/load) are read. Override only on a Proxmox LXC — see below. |
+| `DOCKTAIL_HOST_SYS` | `/sys` | Where whole-host vitals read temperature sensors. Same Proxmox LXC caveat. |
+
+#### Proxmox LXC: correcting host CPU/memory/load
+
+Host vitals are read from the host's own `/proc` and `/sys` with no extra mounts — correct on bare metal, VMs, and Docker Desktop. A **Proxmox LXC** running Docker is the exception: Proxmox uses LXCFS to show the container its *own* memory/CPU limits, but a Docker container's `/proc` bypasses LXCFS and reports the **physical node** instead of the LXC. The symptom is host memory reading as the whole node (e.g. "17 GB used of 12 GB"); CPU and load are off the same way.
+
+Fix it by feeding the agent the LXCFS files. Bind-mount them to an alternate path and point `DOCKTAIL_HOST_PROC` at it:
+
+```yaml
+services:
+  docktail:
+    environment:
+      - DOCKTAIL_HOST_PROC=/host/proc
+    volumes:
+      - /proc/meminfo:/host/proc/meminfo:ro
+      - /proc/stat:/host/proc/stat:ro
+      - /proc/loadavg:/host/proc/loadavg:ro
+```
+
+Mount all three together (the agent reads `stat` and `meminfo` from that path; a partial mount disables vitals). Only Proxmox LXC hosts need this.
 
 ### What It Sends
 
