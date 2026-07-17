@@ -143,7 +143,13 @@ docker build -t docktail:latest .
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=marvinvr/docktail&type=date&legend=top-left)](https://www.star-history.com/#marvinvr/docktail&type=date&legend=top-left)
+<a href="https://www.star-history.com/?type=date&legend=top-left&repos=marvinvr%2Fdocktail">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=marvinvr/docktail&type=date&theme=dark&legend=top-left&sealed_token=tGE33ZV1yoq6Xh_yVB7IfUCG1bCcpFGEKG-pLYGE-y3DfXukM6ROnFGo2IO6Mnuyne8fGrG384yVF9imwzgj4c59yVt6_gBvbs3bK3HiokR1-ePqnqKUYyVdrLiMX26yZXGrDgwGavQ4t5M-MC2BnVwfYbW8I4e6bIWHF8cTqPODm2JNSOuP3W5aAL_o" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=marvinvr/docktail&type=date&legend=top-left&sealed_token=tGE33ZV1yoq6Xh_yVB7IfUCG1bCcpFGEKG-pLYGE-y3DfXukM6ROnFGo2IO6Mnuyne8fGrG384yVF9imwzgj4c59yVt6_gBvbs3bK3HiokR1-ePqnqKUYyVdrLiMX26yZXGrDgwGavQ4t5M-MC2BnVwfYbW8I4e6bIWHF8cTqPODm2JNSOuP3W5aAL_o" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=marvinvr/docktail&type=date&legend=top-left&sealed_token=tGE33ZV1yoq6Xh_yVB7IfUCG1bCcpFGEKG-pLYGE-y3DfXukM6ROnFGo2IO6Mnuyne8fGrG384yVF9imwzgj4c59yVt6_gBvbs3bK3HiokR1-ePqnqKUYyVdrLiMX26yZXGrDgwGavQ4t5M-MC2BnVwfYbW8I4e6bIWHF8cTqPODm2JNSOuP3W5aAL_o" />
+ </picture>
+</a>
 
 ## License
 
