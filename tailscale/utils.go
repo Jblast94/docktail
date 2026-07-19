@@ -65,6 +65,22 @@ func (c *Client) DetectVersionMismatch(ctx context.Context) {
 		Msg("Tailscale CLI/daemon version mismatch detected; will use TS_DEBUG_FAKE_IPC_VERSION for CLI calls")
 }
 
+// WarnIfSocketMissing logs a setup hint when the tailscaled socket does not
+// exist. This is the usual failure mode on macOS and Windows Docker hosts: the
+// host's Tailscale app exposes no Unix socket, and Docker Desktop cannot mount
+// host sockets into its VM, so the containerized sidecar setup is required.
+func (c *Client) WarnIfSocketMissing() {
+	if c.socketPath == "" {
+		return
+	}
+	if _, err := os.Stat(c.socketPath); err == nil {
+		return
+	}
+	log.Warn().
+		Str("socket", c.socketPath).
+		Msg("Tailscale socket not found; if your Docker host is macOS or Windows, the host's Tailscale daemon cannot be shared with containers - use the sidecar setup: https://docktail.org/docs/#tailscale-sidecar")
+}
+
 // stripWarnings removes warning messages from Tailscale CLI output
 // Warnings appear before the JSON and need to be stripped for parsing
 func stripWarnings(output []byte) string {

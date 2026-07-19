@@ -143,6 +143,7 @@ type TailscaleHandler struct {
 func (c *Client) ReconcileServices(ctx context.Context, desiredServices []*apptypes.ContainerService) error {
 	// Re-detect version mismatch each cycle in case tailscaled was updated
 	c.DetectVersionMismatch(ctx)
+	c.WarnIfSocketMissing()
 
 	serviceDesiredCount := 0
 	for _, svc := range desiredServices {
