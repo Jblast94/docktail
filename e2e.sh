@@ -308,12 +308,75 @@ api_create_service() {
         "${API_BASE}/tailnet/${API_TAILNET}/services/${name}" 2>/dev/null || echo "000"
 }
 
+# Print the "comment" (description) of a service definition, empty if unset/gone.
+api_service_comment() {
+    local token="$1" name="$2"
+    curl -s -H "Authorization: Bearer ${token}" \
+        "${API_BASE}/tailnet/${API_TAILNET}/services/${name}" 2>/dev/null \
+        | jq -r '.comment // empty' 2>/dev/null || echo ""
+}
+
 # Count hosts currently advertising a service (0 = unused).
 api_service_host_count() {
     local token="$1" name="$2"
     curl -s -H "Authorization: Bearer ${token}" \
         "${API_BASE}/tailnet/${API_TAILNET}/services/${name}/devices" 2>/dev/null \
         | jq -r '.hosts | length' 2>/dev/null || echo "0"
+}
+
+# Assert that a Control Plane service definition carries exactly the expected
+# tags (order-independent). The tags a service carries are NOT visible in
+# `tailscale serve status`; they only live in the service definition on the
+# control plane, so this is the only way to actually verify tag parsing.
+# Polls until the tags converge on the expected set (the definition is created
+# asynchronously during reconciliation), so the check reflects the reconciled
+# result rather than the first partial/empty response. Usage:
+# assert_service_tags <token> <service-name> <tag>...
+assert_service_tags() {
+    local token="$1" name="svc:$2"
+    shift 2
+    local expected actual=""
+    expected=$(jq -rn --args '$ARGS.positional | sort | join(",")' "$@")
+
+    local attempt
+    for attempt in $(seq 1 20); do
+        actual=$(curl -s -H "Authorization: Bearer ${token}" \
+            "${API_BASE}/tailnet/${API_TAILNET}/services/${name}" 2>/dev/null \
+            | jq -r '(.tags // []) | sort | join(",")' 2>/dev/null || true)
+        if [ "$actual" = "$expected" ]; then
+            break
+        fi
+        sleep 2
+    done
+
+    if [ "$actual" = "$expected" ]; then
+        pass "$name has tags [$expected]"
+    else
+        fail "$name expected tags [$expected], got [${actual:-<none>}]"
+    fi
+}
+
+# Simulate a manual admin-console edit on an existing service definition:
+# fetch the current definition, overwrite its tags and comment, and PUT it
+# back with name/addrs/ports preserved. Echoes the PUT HTTP status code.
+# Usage: api_tamper_service_tags <token> <svc:name> <comment> <tag>...
+api_tamper_service_tags() {
+    local token="$1" name="$2" comment="$3"
+    shift 3
+    local current payload
+    current=$(curl -s -H "Authorization: Bearer ${token}" \
+        "${API_BASE}/tailnet/${API_TAILNET}/services/${name}" 2>/dev/null)
+    payload=$(echo "$current" | jq -c --arg comment "$comment" --args \
+        '.tags = $ARGS.positional | .comment = $comment' "$@" 2>/dev/null)
+    if [ -z "$payload" ]; then
+        echo "000"
+        return
+    fi
+    curl -s -o /dev/null -w "%{http_code}" -X PUT \
+        -H "Authorization: Bearer ${token}" \
+        -H "Content-Type: application/json" \
+        -d "$payload" \
+        "${API_BASE}/tailnet/${API_TAILNET}/services/${name}" 2>/dev/null || echo "000"
 }
 
 # Delete a service definition (best effort).
@@ -505,9 +568,22 @@ assert_funnel_active        "8443"
 # ==============================================================================
 
 log "5. Custom Tags"
-# Tags aren't in serve status, but we verify the service was created
-# (tag validation would need API access)
 assert_service_exists       "e2e-custom-tags"
+
+# The container sets `docktail.tags=tag:web,tag:production` (comma-separated).
+# Verify BOTH tags actually landed on the service definition in the control
+# plane. This guards the comma-splitting tag parser: a regression that dropped
+# the second tag, mis-split the value, or ignored the label would be caught
+# here (an exact, order-independent match), whereas the existence check above
+# would still pass. The tags are only visible via the Control Plane API, not
+# `tailscale serve status`, so this needs an OAuth token — without one we fail
+# loudly rather than silently skip the verification.
+CUSTOM_TAGS_TOKEN=$(mint_api_token)
+if [ -z "$CUSTOM_TAGS_TOKEN" ]; then
+    fail "no OAuth credentials available to verify custom tags via Control Plane API"
+else
+    assert_service_tags "$CUSTOM_TAGS_TOKEN" "e2e-custom-tags" "tag:web" "tag:production"
+fi
 
 # ==============================================================================
 # 6. Multiple Ports
@@ -766,10 +842,132 @@ else
 fi
 
 # ==============================================================================
-# 14. Log Health
+# 14. Service Description (synced to Control Plane "comment", issue #60)
+# ==============================================================================
+#
+# https://github.com/marvinvr/docktail/issues/60
+# docktail.service.description sets the human-readable description shown per
+# service in the Tailscale admin panel. DockTail syncs it to the Service
+# definition's "comment" field via the Control Plane API, so it is only
+# verifiable when API credentials are configured. Indexed services carry their
+# own description independently of the primary service. Covers both the initial
+# sync and a later description change being reflected in the comment.
+
+log "14. Service Description (issue #60)"
+
+echo "  --- Pre-check: described services exist locally ---"
+refresh_serve_status
+assert_service_exists       "e2e-description"
+assert_service_exists       "e2e-description-secondary"
+
+if [ -z "${API_TOKEN:-}" ]; then
+    echo "  SKIP: no OAuth credentials available for Control Plane API assertions"
+else
+    echo "  --- Primary service description synced to Control Plane comment ---"
+    desc_synced=0
+    for _ in $(seq 1 20); do
+        if [ "$(api_service_comment "$API_TOKEN" "svc:e2e-description")" = "E2E Bookmark Manager" ]; then
+            desc_synced=1
+            break
+        fi
+        sleep 2
+    done
+    if [ "$desc_synced" = "1" ]; then
+        pass "svc:e2e-description comment set to 'E2E Bookmark Manager'"
+    else
+        fail "svc:e2e-description comment not synced (got '$(api_service_comment "$API_TOKEN" "svc:e2e-description")')"
+    fi
+
+    echo "  --- Indexed service description synced independently ---"
+    idx_desc_synced=0
+    for _ in $(seq 1 20); do
+        if [ "$(api_service_comment "$API_TOKEN" "svc:e2e-description-secondary")" = "E2E Secondary Service" ]; then
+            idx_desc_synced=1
+            break
+        fi
+        sleep 2
+    done
+    if [ "$idx_desc_synced" = "1" ]; then
+        pass "svc:e2e-description-secondary comment set to 'E2E Secondary Service'"
+    else
+        fail "svc:e2e-description-secondary comment not synced (got '$(api_service_comment "$API_TOKEN" "svc:e2e-description-secondary")')"
+    fi
+
+    echo "  --- Changing the description is reflected in the Control Plane comment ---"
+    docker stop e2e-description >/dev/null 2>&1 || true
+    docker rm e2e-description >/dev/null 2>&1 || true
+    docker run -d \
+        --name e2e-description \
+        --restart no \
+        --label "docktail.service.enable=true" \
+        --label "docktail.service.name=e2e-description" \
+        --label "docktail.service.port=80" \
+        --label "docktail.service.description=E2E Updated Description" \
+        nginx:alpine >/dev/null 2>&1
+
+    desc_updated=0
+    for _ in $(seq 1 20); do
+        if [ "$(api_service_comment "$API_TOKEN" "svc:e2e-description")" = "E2E Updated Description" ]; then
+            desc_updated=1
+            break
+        fi
+        sleep 2
+    done
+    if [ "$desc_updated" = "1" ]; then
+        pass "svc:e2e-description comment changed to 'E2E Updated Description'"
+    else
+        fail "svc:e2e-description comment not updated (got '$(api_service_comment "$API_TOKEN" "svc:e2e-description")')"
+    fi
+fi
+
+# ==============================================================================
+# 15. Authoritative Tag Reconciliation (issue #63)
+# ==============================================================================
+#
+# https://github.com/marvinvr/docktail/issues/63
+# Labels are the source of truth for service tags: manual edits to a service
+# definition's tags in the admin console must be overwritten on the next
+# reconcile. Previously tags were only applied at creation time, so a tag label
+# added after the service already existed never took effect.
+#
+# Simulate a manual console edit by rewriting svc:e2e-custom-tags with a stale
+# tag set plus a manual comment, then assert DockTail converges the tags back
+# to the label-declared set. The container declares no description label, so
+# the manual comment must survive the tag update (an empty declared value
+# means DockTail leaves the existing one alone).
+
+log "15. Authoritative Tag Reconciliation (issue #63)"
+
+TAG_SYNC_TOKEN=$(mint_api_token)
+if [ -z "$TAG_SYNC_TOKEN" ]; then
+    fail "no OAuth credentials available to verify tag reconciliation via Control Plane API"
+else
+    echo "  --- Simulating a manual tag edit in the admin console ---"
+    tamper_status=$(api_tamper_service_tags "$TAG_SYNC_TOKEN" "svc:e2e-custom-tags" "e2e manual comment" "tag:ci-test-container")
+    if [ "$tamper_status" = "200" ]; then
+        pass "rewrote svc:e2e-custom-tags with stale tags via API"
+    else
+        fail "failed to rewrite svc:e2e-custom-tags via API (status $tamper_status)"
+    fi
+
+    echo "  --- DockTail must revert the tags to the label-declared set ---"
+    assert_service_tags "$TAG_SYNC_TOKEN" "e2e-custom-tags" "tag:web" "tag:production"
+    wait_for_docktail_log "Updating service tags in Control Plane"
+
+    echo "  --- Manual comment survives (no description label declared) ---"
+    tampered_comment=$(api_service_comment "$TAG_SYNC_TOKEN" "svc:e2e-custom-tags")
+    if [ "$tampered_comment" = "e2e manual comment" ]; then
+        pass "manual comment preserved on svc:e2e-custom-tags"
+    else
+        fail "manual comment lost on svc:e2e-custom-tags (got '${tampered_comment:-<none>}')"
+    fi
+fi
+
+# ==============================================================================
+# 16. Log Health
 # ==============================================================================
 
-log "14. DockTail Log Health"
+log "16. DockTail Log Health"
 docktail_logs=$(docker logs "$DOCKTAIL_CONTAINER" 2>&1)
 
 if grep -qE "FATAL|panic" <<<"$docktail_logs"; then

@@ -38,13 +38,23 @@ func main() {
 	defaultTagsStr := getEnv("DEFAULT_SERVICE_TAGS", "tag:container")
 	ignoreServiceNamesStr := getEnv("IGNORE_SERVICE_NAMES", "")
 	deleteUnusedServices := getEnvBool("DELETE_UNUSED_SERVICES", false)
+	skipShutdownCleanup := getEnvBool("SKIP_SHUTDOWN_CLEANUP", false)
 
-	// Parse default tags
+	// Parse default tags, dropping duplicates: the Control Plane stores tags
+	// as a set, so a duplicated default would register as permanent drift and
+	// trigger a re-PUT on every reconcile cycle.
 	var defaultTags []string
+	seenDefaultTags := make(map[string]struct{})
 	for _, tag := range strings.Split(defaultTagsStr, ",") {
-		if trimmed := strings.TrimSpace(tag); trimmed != "" {
-			defaultTags = append(defaultTags, trimmed)
+		trimmed := strings.TrimSpace(tag)
+		if trimmed == "" {
+			continue
 		}
+		if _, dup := seenDefaultTags[trimmed]; dup {
+			continue
+		}
+		seenDefaultTags[trimmed] = struct{}{}
+		defaultTags = append(defaultTags, trimmed)
 	}
 
 	// Parse ignored service names
@@ -81,6 +91,7 @@ func main() {
 		Strs("default_tags", defaultTags).
 		Strs("ignore_service_names", ignoreServiceNames).
 		Bool("delete_unused_services", deleteUnusedServices).
+		Bool("skip_shutdown_cleanup", skipShutdownCleanup).
 		Msg("Configuration loaded")
 
 	// Create Docker client
@@ -105,6 +116,7 @@ func main() {
 
 	// Detect CLI/daemon version mismatch (common with host-mode Tailscale)
 	tailscaleClient.DetectVersionMismatch(context.Background())
+	tailscaleClient.WarnIfSocketMissing()
 
 	log.Info().Msg("Tailscale client initialized")
 
@@ -147,7 +159,16 @@ func main() {
 		log.Fatal().Err(err).Msg("Reconciler failed")
 	}
 
-	// Graceful shutdown: clean up all Tailscale services
+	// Graceful shutdown: optionally clean up all Tailscale services and funnels.
+	// When SKIP_SHUTDOWN_CLEANUP is enabled we leave everything advertised so the
+	// services stay reachable while DockTail is down. The serve/funnel config lives
+	// in tailscaled, not in DockTail, so skipping cleanup keeps it in place.
+	if skipShutdownCleanup {
+		log.Info().Msg("SKIP_SHUTDOWN_CLEANUP is enabled, leaving Tailscale services and funnels advertised")
+		log.Info().Msg("DockTail stopped gracefully")
+		return
+	}
+
 	log.Info().Msg("Reconciler stopped, cleaning up Tailscale services")
 
 	// Use a new context with timeout for cleanup (don't use cancelled context)

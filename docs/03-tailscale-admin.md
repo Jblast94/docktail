@@ -73,6 +73,27 @@ Services require tag definitions in `tagOwners` and an `autoApprovers.services` 
 
 If you manage ACLs through GitOps, both tags must exist in `tagOwners`; otherwise Tailscale rejects references to undefined tags.
 
+### Funnel ACL
+
+Funnel needs an extra grant on top of the service rules above. Tailscale only lets a node expose public Funnel endpoints if it has the `funnel` node attribute. DockTail runs Funnel on the node running its `tailscaled`, which is tagged `tag:server` in both the host and sidecar setups, so grant the attribute to `tag:server`:
+
+```json
+{
+  "nodeAttrs": [
+    {
+      "target": ["tag:server"],
+      "attr": ["funnel"]
+    }
+  ]
+}
+```
+
+Notes:
+
+- Grant `funnel` to `tag:server` (the DockTail host or sidecar), not `tag:container`. `tag:container` is the virtual service tag, not a real device, so it cannot run Funnel.
+- `autoApprovers.services` only approves service advertisement inside the tailnet. It does not grant Funnel.
+- The public Funnel URL is the machine hostname (`https://<host>.<tailnet>.ts.net`), not the service URL (`https://<service>.<tailnet>.ts.net`). Test it from a device that is not on your tailnet.
+
 ### Approve Services
 
 The first time a new service is advertised, it may need approval in the Tailscale Admin Console Services tab. After approval, the service continues to work across container restarts. OAuth or API key credentials can create service definitions automatically, but first approval may still be required depending on your ACL policy.

@@ -1,10 +1,10 @@
 ## Installation
 
-DockTail needs access to the Docker socket and a Tailscale socket. Use the host setup when Tailscale already runs on the Docker host. Use the sidecar setup when the host should not install Tailscale directly.
+DockTail needs access to the Docker socket and a Tailscale socket. Use the host setup when Tailscale already runs on a Linux Docker host. Use the sidecar setup when the host should not install Tailscale directly, or when the host's Tailscale daemon cannot be shared with containers (macOS and Windows).
 
 ### Tailscale On Host
 
-Use this setup when Tailscale is already installed on the Docker host:
+Use this setup when Tailscale is already installed on a Linux Docker host:
 
 ```yaml
 services:
@@ -21,6 +21,8 @@ services:
 
 Mount `/var/run/tailscale` as a directory rather than mounting the socket file directly. When `tailscaled` restarts, it recreates the socket with a new inode; a directory mount stays in sync.
 
+The host setup only works on Linux. On macOS and Windows the Tailscale app does not expose a Unix socket at `/var/run/tailscale` (the local API is served over a localhost TCP port instead), and Docker Desktop runs containers in a virtual machine that cannot mount host Unix sockets anyway. If DockTail logs `dial unix /var/run/tailscale/tailscaled.sock: connect: no such file or directory`, switch to the [Tailscale Sidecar](#tailscale-sidecar) setup below.
+
 The host machine must advertise a tag that matches your ACL auto-approvers:
 
 ```bash
@@ -31,7 +33,7 @@ The `--reset` flag briefly drops the Tailscale connection. If you are connected 
 
 ### Tailscale Sidecar
 
-Use this setup when the host does not run Tailscale directly:
+Use this setup when the host does not run Tailscale directly. It is the required setup on macOS and Windows (Docker Desktop, OrbStack, Colima) and on many NAS devices, because `tailscaled` runs inside the Docker environment and shares its socket with DockTail through a named volume instead of a host mount:
 
 ```yaml
 services:
@@ -71,3 +73,5 @@ volumes:
 ```
 
 Set `TAILSCALE_AUTH_KEY` to authenticate the Tailscale container. Generate it in the Tailscale Admin Console under Settings -> Keys. The sidecar should advertise `tag:server` so it can satisfy the ACL auto-approver example below.
+
+The sidecar uses `network_mode: host` so it can reach container IPs on any Docker network. On Docker Desktop this requires enabling host networking under Settings -> Resources -> Network. Alternatively, remove `network_mode: host` and attach the sidecar to the same Docker network as the containers you expose.

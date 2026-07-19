@@ -2,16 +2,17 @@ package types
 
 // ContainerService represents a parsed container with its Tailscale service configuration
 type ContainerService struct {
-	ContainerID     string
-	ContainerName   string
-	ServiceEnabled  bool
-	ServiceName     string
-	Port            string   // Tailscale service port (e.g., "443")
-	TargetPort      string   // Container/host port to proxy to (e.g., "9080")
-	ServiceProtocol string   // Protocol Tailscale uses (e.g., "https", "http", "tcp")
-	Protocol        string   // Protocol the container speaks (e.g., "http", "https", "tcp")
-	Tags            []string // Tailscale service tags (e.g., ["tag:container", "tag:web"])
-	IPAddress       string
+	ContainerID        string
+	ContainerName      string
+	ServiceEnabled     bool
+	ServiceName        string
+	ServiceDescription string   // Human-readable Service description synced to the Tailscale Control Plane (admin panel "comment")
+	Port               string   // Tailscale service port (e.g., "443")
+	TargetPort         string   // Container/host port to proxy to (e.g., "9080")
+	ServiceProtocol    string   // Protocol Tailscale uses (e.g., "https", "http", "tcp")
+	Protocol           string   // Protocol the container speaks (e.g., "http", "https", "tcp")
+	Tags               []string // Tailscale service tags (e.g., ["tag:container", "tag:web"])
+	IPAddress          string
 	// MonitorIP/MonitorPort are where the LOCAL health check should probe, set only
 	// when it must diverge from IPAddress/TargetPort (the tailscale-serve
 	// destination, which is resolved for tailscaled in the host netns and so can be
@@ -46,6 +47,7 @@ type ServiceDefinition struct {
 const (
 	LabelEnable           = "docktail.service.enable"
 	LabelService          = "docktail.service.name"
+	LabelDescription      = "docktail.service.description"
 	LabelPort             = "docktail.service.service-port"
 	LabelServiceProtocol  = "docktail.service.service-protocol"
 	LabelTarget           = "docktail.service.port"

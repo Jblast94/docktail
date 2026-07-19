@@ -160,6 +160,7 @@ type TailscaleHandler struct {
 func (c *Client) ReconcileServices(ctx context.Context, desiredServices []*apptypes.ContainerService) error {
 	// Re-detect version mismatch each cycle in case tailscaled was updated
 	c.DetectVersionMismatch(ctx)
+	c.WarnIfSocketMissing()
 
 	serviceDesiredCount := 0
 	for _, svc := range desiredServices {
@@ -342,13 +343,20 @@ func (c *Client) ReconcileServices(ctx context.Context, desiredServices []*appty
 	return nil
 }
 
-// syncServiceDefinitions syncs all desired services to the Tailscale Control Plane
-func (c *Client) syncServiceDefinitions(ctx context.Context, services []*apptypes.ContainerService) error {
-	// Deduplicate by service name and aggregate all ports per service
-	type serviceDef struct {
-		Tags  []string
-		Ports []string
-	}
+// serviceDef is the deduplicated, per-service-name view of the desired state
+// that gets synced to the Control Plane.
+type serviceDef struct {
+	Tags        []string
+	Ports       []string
+	Description string
+}
+
+// aggregateServiceDefinitions deduplicates the desired services by name,
+// aggregating all ports per service and carrying the tags and description.
+// A container can define several services (primary + indexed) and several
+// containers can back the same service name, so ports are merged and the first
+// non-empty description wins.
+func aggregateServiceDefinitions(services []*apptypes.ContainerService) map[string]*serviceDef {
 	uniqueServices := make(map[string]*serviceDef)
 
 	for _, svc := range services {
@@ -357,8 +365,10 @@ func (c *Client) syncServiceDefinitions(ctx context.Context, services []*apptype
 		}
 		def, exists := uniqueServices[svc.ServiceName]
 		if !exists {
-			def = &serviceDef{Tags: svc.Tags}
+			def = &serviceDef{Tags: svc.Tags, Description: svc.ServiceDescription}
 			uniqueServices[svc.ServiceName] = def
+		} else if def.Description == "" {
+			def.Description = svc.ServiceDescription
 		}
 		// Add port if not already present
 		found := false
@@ -373,13 +383,20 @@ func (c *Client) syncServiceDefinitions(ctx context.Context, services []*apptype
 		}
 	}
 
+	return uniqueServices
+}
+
+// syncServiceDefinitions syncs all desired services to the Tailscale Control Plane
+func (c *Client) syncServiceDefinitions(ctx context.Context, services []*apptypes.ContainerService) error {
+	uniqueServices := aggregateServiceDefinitions(services)
+
 	log.Info().
 		Int("unique_services", len(uniqueServices)).
 		Msg("Syncing service definitions to Control Plane")
 
 	var failed []string
 	for name, def := range uniqueServices {
-		if err := c.SyncServiceDefinition(ctx, name, def.Tags, def.Ports); err != nil {
+		if err := c.SyncServiceDefinition(ctx, name, def.Tags, def.Ports, def.Description); err != nil {
 			failed = append(failed, name)
 			log.Error().
 				Err(err).
@@ -396,9 +413,17 @@ func (c *Client) syncServiceDefinitions(ctx context.Context, services []*apptype
 	return nil
 }
 
-// SyncServiceDefinition ensures a service definition exists in the Tailscale API.
-// Only creates if the service doesn't exist. Does NOT update existing services.
-func (c *Client) SyncServiceDefinition(ctx context.Context, serviceName string, tags []string, ports []string) error {
+// SyncServiceDefinition ensures a service definition exists in the Tailscale API
+// and matches the label-declared state. It creates the service (with an optional
+// description) if it doesn't exist. For an already-existing service it
+// reconciles tags and the description (the admin-panel "comment"): labels are
+// the source of truth, so manual edits to either are overwritten on the next
+// run (issue #63). An empty desired tag set or description means "nothing
+// declared" and leaves the existing value alone. Ports and addrs are never
+// touched on existing services: the definition is tailnet-global and other
+// hosts may back the same service, so no single instance knows the full
+// desired port set.
+func (c *Client) SyncServiceDefinition(ctx context.Context, serviceName string, tags []string, ports []string, description string) error {
 	if !strings.HasPrefix(serviceName, "svc:") {
 		serviceName = "svc:" + serviceName
 	}
@@ -409,23 +434,54 @@ func (c *Client) SyncServiceDefinition(ctx context.Context, serviceName string, 
 		return fmt.Errorf("failed to get service details: %w", err)
 	}
 
-	// If service already exists, skip creation
 	if existing != nil {
-		log.Debug().
-			Str("service", serviceName).
-			Strs("existing_tags", existing.Tags).
-			Strs("existing_ports", existing.Ports).
-			Msg("Service already exists in Control Plane, skipping creation")
-		return nil
+		tagsDrifted := len(tags) > 0 && !sameStringSet(existing.Tags, tags)
+		descriptionDrifted := description != "" && existing.Comment != description
+
+		if !tagsDrifted && !descriptionDrifted {
+			log.Debug().
+				Str("service", serviceName).
+				Strs("existing_tags", existing.Tags).
+				Strs("existing_ports", existing.Ports).
+				Msg("Service definition already up to date in Control Plane")
+			return nil
+		}
+
+		desiredTags := existing.Tags
+		if tagsDrifted {
+			desiredTags = tags
+			log.Info().
+				Str("service", serviceName).
+				Strs("old_tags", existing.Tags).
+				Strs("new_tags", tags).
+				Msg("Updating service tags in Control Plane")
+		}
+
+		comment := existing.Comment
+		if descriptionDrifted {
+			comment = description
+			log.Info().
+				Str("service", serviceName).
+				Str("description", description).
+				Msg("Updating service description in Control Plane")
+		}
+
+		payload := map[string]interface{}{
+			"name":    serviceName,
+			"addrs":   existing.Addrs,
+			"tags":    desiredTags,
+			"ports":   existing.Ports,
+			"comment": comment,
+		}
+		return c.putService(ctx, serviceName, payload)
 	}
 
 	// Service doesn't exist, create it
 	log.Info().
 		Str("service", serviceName).
 		Strs("tags", tags).
+		Str("description", description).
 		Msg("Creating new service definition in Control Plane")
-
-	apiURL := fmt.Sprintf("%s/api/v2/tailnet/%s/services/%s", c.baseURL, url.PathEscape(c.tailnet), url.PathEscape(serviceName))
 
 	// Tailscale API requires "ports" to be present.
 	if len(ports) == 0 {
@@ -443,6 +499,48 @@ func (c *Client) SyncServiceDefinition(ctx context.Context, serviceName string, 
 		"tags":  tags,
 		"ports": portStrs,
 	}
+	if description != "" {
+		payload["comment"] = description
+	}
+
+	if err := c.putService(ctx, serviceName, payload); err != nil {
+		return err
+	}
+
+	log.Info().
+		Str("service", serviceName).
+		Strs("tags", tags).
+		Msg("Successfully created service definition in Control Plane")
+
+	return nil
+}
+
+// sameStringSet reports whether a and b contain the same unique elements,
+// ignoring order and duplicates. Duplicates must not count as difference: the
+// Control Plane stores tags as a set, so treating a duplicated desired list
+// as drift would trigger a re-PUT on every reconcile cycle.
+func sameStringSet(a, b []string) bool {
+	setA := make(map[string]struct{}, len(a))
+	for _, s := range a {
+		setA[s] = struct{}{}
+	}
+	distinctB := 0
+	seenB := make(map[string]struct{}, len(b))
+	for _, s := range b {
+		if _, ok := setA[s]; !ok {
+			return false
+		}
+		if _, dup := seenB[s]; !dup {
+			seenB[s] = struct{}{}
+			distinctB++
+		}
+	}
+	return len(setA) == distinctB
+}
+
+// putService PUTs a service definition payload to the Control Plane API.
+func (c *Client) putService(ctx context.Context, serviceName string, payload map[string]interface{}) error {
+	apiURL := fmt.Sprintf("%s/api/v2/tailnet/%s/services/%s", c.baseURL, url.PathEscape(c.tailnet), url.PathEscape(serviceName))
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -477,19 +575,15 @@ func (c *Client) SyncServiceDefinition(ctx context.Context, serviceName string, 
 		return fmt.Errorf("API returned error status %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	log.Info().
-		Str("service", serviceName).
-		Strs("tags", tags).
-		Msg("Successfully created service definition in Control Plane")
-
 	return nil
 }
 
 type apiService struct {
-	Name  string   `json:"name"`
-	Addrs []string `json:"addrs"`
-	Tags  []string `json:"tags"`
-	Ports []string `json:"ports"`
+	Name    string   `json:"name"`
+	Addrs   []string `json:"addrs"`
+	Tags    []string `json:"tags"`
+	Ports   []string `json:"ports"`
+	Comment string   `json:"comment"`
 }
 
 // getService fetches the existing service definition from the Tailscale API
