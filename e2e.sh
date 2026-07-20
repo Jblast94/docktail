@@ -33,6 +33,7 @@ fail() { echo "  FAIL: $1"; failed=$((failed + 1)); errors="${errors}\n  - $1"; 
 cleanup() {
     log "Cleaning up"
     kill "$TIMEOUT_PID" 2>/dev/null || true
+    docker unpause "$DOCKTAIL_CONTAINER" 2>/dev/null || true
     docker compose -f "$COMPOSE_FILE" down -v --remove-orphans 2>/dev/null || true
     sweep_e2e_services
     rm -rf "$E2E_SECRETS_DIR"
@@ -414,11 +415,17 @@ clear_otherhost_service() {
 }
 
 # Establish OTHERHOST as a stable, host-backed service in the control plane.
-# Retries create+advertise because DockTail's cleanup may delete the definition
-# during the brief window before the advertising host propagates. Once a host is
-# registered the serve config keeps it registered, so DockTail stops deleting it.
+# Pause DockTail while the definition and host advertisement propagate so its
+# five-second cleanup loop cannot delete the zero-host definition in between.
+# Once the host is registered, unpause DockTail and let the test verify that it
+# preserves the service.
 setup_otherhost_service() {
-    local token="$1" attempt inner hc
+    local token="$1" attempt inner hc registered=1
+
+    if ! docker pause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1; then
+        return 1
+    fi
+
     for attempt in $(seq 1 6); do
         api_create_service "$token" "$OTHERHOST_SERVICE_NAME" >/dev/null
         advertise_otherhost_service
@@ -426,14 +433,16 @@ setup_otherhost_service() {
             sleep 2
             hc=$(api_service_host_count "$token" "$OTHERHOST_SERVICE_NAME")
             if [ "${hc:-0}" -ge 1 ] 2>/dev/null; then
-                return 0
-            fi
-            if [ "$(api_service_status "$token" "$OTHERHOST_SERVICE_NAME")" = "404" ]; then
-                break  # deleted mid-registration; recreate and retry
+                registered=0
+                break 2
             fi
         done
     done
-    return 1
+
+    if ! docker unpause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1; then
+        return 1
+    fi
+    return "$registered"
 }
 
 # ==============================================================================

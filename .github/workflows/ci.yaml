@@ -71,6 +71,10 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # E2E runs share one tailnet and use fixed svc:e2e-* fixture names.
+    concurrency:
+      group: docktail-e2e
+      cancel-in-progress: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
