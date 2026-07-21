@@ -351,6 +351,12 @@ func renderSitemap(lastmod string) string {
     <priority>0.9</priority>
   </url>
   <url>
+    <loc>https://docktail.org/cloud/</loc>
+    <lastmod>%s</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
     <loc>https://docktail.org/docs.md</loc>
     <lastmod>%s</lastmod>
     <changefreq>weekly</changefreq>
@@ -369,7 +375,7 @@ func renderSitemap(lastmod string) string {
     <priority>0.5</priority>
   </url>
 </urlset>
-`, lastmod, lastmod, lastmod, lastmod, lastmod)
+`, lastmod, lastmod, lastmod, lastmod, lastmod, lastmod)
 }
 
 func writeFile(path, content string) error {
@@ -701,6 +707,7 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
         <button id="sidebar-toggle" class="lg:hidden text-gray-500 hover:text-gray-900 transition-colors" aria-label="Open documentation navigation">
           <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
+        <a href="/cloud/?utm_source=docktail_org&amp;utm_medium=docs_nav" class="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:inline">cloud</a>
         <a href="/docs.md" class="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:inline">markdown</a>
         <a href="/llms.txt" class="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:inline">agents</a>
         <a href="https://github.com/marvinvr/docktail" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">github</a>
@@ -735,8 +742,9 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
         <div class="border-t border-gray-200 pt-8 pb-16 mt-16">
           <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
             <span class="text-xs text-gray-400">docktail · generated {{ .GeneratedAt }}</span>
-            <div class="flex items-center gap-6">
+            <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
               <a href="https://github.com/marvinvr/docktail" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">GitHub</a>
+              <a href="/cloud/?utm_source=docktail_org&amp;utm_medium=docs_footer" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Cloud</a>
               <a href="https://tailscale.com/kb/1552/tailscale-services" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Tailscale Services</a>
               <a href="/docs.md" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Markdown</a>
               <a href="/llms.txt" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Agents</a>

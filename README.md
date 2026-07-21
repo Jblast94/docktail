@@ -43,7 +43,7 @@ DockTail uses native Tailscale Services, not per-container Tailscale devices.
 - Automatic reconciliation when containers restart or IPs change.
 - Optional cleanup of unused Tailscale service definitions (opt-in, safe with multiple instances).
 - Stateless Docker container runtime.
-- Optional DockTail Cloud reporting — multi-host monitoring, opt-in via one env var.
+- Optional [DockTail Cloud](https://docktail.org/cloud/) reporting — multi-host monitoring, opt-in via one env var.
 
 ## Quick Start
 
@@ -126,7 +126,8 @@ labels:
 - LLM guide: https://docktail.org/llms.txt
 - Full LLM docs: https://docktail.org/llms-full.txt
 
-- Optional DockTail Cloud reporting: [`docs/08-cloud.md`](docs/08-cloud.md)
+- DockTail Cloud overview: https://docktail.org/cloud/
+- Optional Cloud agent setup: [`docs/08-cloud.md`](docs/08-cloud.md)
 
 The canonical documentation source lives in [`docs/`](docs/). Website docs are generated from those Markdown files.
 

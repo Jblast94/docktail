@@ -2,9 +2,11 @@
 
 DockTail Cloud reporting is optional, opt-in monitoring for DockTail-managed services across one or more hosts. The DockTail agent stays completely inert unless `DOCKTAIL_CLOUD_KEY` is set; with no key, no connection is opened and DockTail runs exactly as before.
 
+[Explore DockTail Cloud](https://docktail.org/cloud/) or [open the dashboard](https://cloud.docktail.org/login).
+
 Reporting rides along with the normal agent — there is no separate binary. The same DockTail container gains cloud reporting when a workspace key is present.
 
-The hosted control plane (the dashboard and ingest service behind `wss://ingest.docktail.org`) is a separate, proprietary product. The reporting module in this repository only sends metadata to it over an outbound-only WebSocket Secure (WSS) connection.
+The hosted control plane (the dashboard and ingest service behind `wss://ingest.docktail.org`) is a separate, proprietary product. The reporting module in this repository sends operational metadata and bounded incident log tails to it over an outbound-only WebSocket Secure (WSS) connection. It has no exec, deploy, shell, or command path.
 
 ### How To Enable
 
@@ -38,13 +40,13 @@ services:
 
 ### What It Sends
 
-When enabled, the agent reports metadata only:
+When enabled, the agent reports the following operational data:
 
 - Periodic snapshots of DockTail-managed services, including stopped containers, plus refreshes after successful reconciles.
-- A read-only inventory of the host's **other** containers — the ones *not* published with `docktail.*` labels, including stopped ones — with name, image, state/health, ports, and live CPU/memory. This is metadata only: these containers are never health-checked, probed, or alerted on; they are listed on the dashboard so you can see the host's whole Docker footprint, not just published services.
+- A read-only inventory of the host's **other** containers — the ones *not* published with `docktail.*` labels, including stopped ones — with name, image, state/health, ports, and live CPU/memory. These containers are not actively probed; they are listed on the dashboard so you can see the host's whole Docker footprint, and can be explicitly watched for Docker-event-driven incidents and alerts.
 - Docker failure events, including container exit codes, out-of-memory (OOM) kills, health-status changes, and restart loops.
 - Local-vantage check results. Checks default to TCP; HTTP checks run only when pushed from cloud-managed config.
-- Incident log excerpts. Capture is on by default for down-signal events, capped agent-side, and can be disabled globally or per service from the cloud dashboard.
+- Bounded incident log excerpts. Capture is on by default for down-signal events, capped agent-side, and can be disabled globally or per service from the cloud dashboard.
 
 ### What It Never Does
 
