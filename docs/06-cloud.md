@@ -1,12 +1,17 @@
 ## DockTail Cloud
 
-DockTail Cloud reporting is optional, opt-in monitoring for DockTail-managed services across one or more hosts. The DockTail agent stays completely inert unless `DOCKTAIL_CLOUD_KEY` is set; with no key, no connection is opened and DockTail runs exactly as before.
+DockTail Cloud is optional, opt-in monitoring for DockTail-managed services across one or more hosts. It is a hosted dashboard that watches what DockTail exposes and tells you *why* something is unreachable.
 
-[Explore DockTail Cloud](https://docktail.org/cloud/) or [open the dashboard](https://cloud.docktail.org/login).
+[Explore DockTail Cloud](https://docktail.org/cloud/) or [open the dashboard](https://cloud.docktail.org/login). One host is free with no time limit.
 
-Reporting rides along with the normal agent — there is no separate binary. The same DockTail container gains cloud reporting when a workspace key is present.
+### What You Get
 
-The hosted control plane (the dashboard and ingest service behind `wss://ingest.docktail.org`) is a separate, proprietary product. The reporting module in this repository sends operational metadata and bounded incident log tails to it over an outbound-only WebSocket Secure (WSS) connection. It has no exec, deploy, shell, or command path.
+- **One view of every host and service.** The full catalog of DockTail-managed services, plus a read-only inventory of the host's other containers, with health history.
+- **The useful distinction.** A plain uptime check stops at "down." Cloud already has the Docker and Tailscale context, so it separates a *container* problem (exit code, OOM kill, restart loop) from an *exposure* problem (the container answers locally, but its Tailscale service isn't published) from a *host* problem (the box stopped sending heartbeats).
+- **Incidents with the evidence attached.** Docker failure events and a bounded log tail captured at the moment of failure, so you start from the reason instead of from a graph.
+- **Alerts and recoveries.** Notification when a service breaks and when it comes back — including hosts that drop off entirely, since detection runs in Cloud rather than on the box.
+
+Reporting rides along with the normal agent — there is no separate binary. The same DockTail container gains cloud reporting when a workspace key is present, and stays completely inert without one.
 
 ### How To Enable
 
@@ -30,6 +35,8 @@ services:
       - DOCKTAIL_CLOUD_KEY=${DOCKTAIL_CLOUD_KEY}
 ```
 
+With no key set, no connection is opened and DockTail runs exactly as before.
+
 ### Environment Variables
 
 | Variable | Default | Description |
@@ -39,6 +46,8 @@ services:
 | `DOCKTAIL_CHECK_INTERVAL` | `30s` | How often local-vantage checks run. |
 
 ### What It Sends
+
+The hosted control plane (the dashboard and ingest service behind `wss://ingest.docktail.org`) is a separate, proprietary product. The reporting module in this repository sends operational metadata and bounded incident log tails to it over an outbound-only WebSocket Secure (WSS) connection.
 
 When enabled, the agent reports the following operational data:
 

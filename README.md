@@ -119,6 +119,27 @@ labels:
   - "docktail.funnel.path=/webhook"
 ```
 
+## DockTail Cloud (optional)
+
+Once you run DockTail on more than one machine, "is it still up?" gets tedious. [DockTail Cloud](https://docktail.org/cloud/) is a hosted dashboard for that — and because it already has the Docker and Tailscale context, it tells you *which* kind of broken you're looking at:
+
+```text
+● down · exit 137 · likely OOM        →  the container failed
+● local up · tailnet not served       →  the app is fine, the exposure isn't
+● host offline · heartbeat missing    →  the whole box went away
+```
+
+It rides along with the agent you already run — no second binary. Set one environment variable and the same container starts reporting:
+
+```yaml
+environment:
+  - DOCKTAIL_CLOUD_KEY=${DOCKTAIL_CLOUD_KEY}   # from cloud.docktail.org
+```
+
+Without the key the module is completely inert: no connection is opened and DockTail behaves exactly as before. The link is outbound-only and metadata-only — the protocol has no exec, deploy, or shell message types, which you can verify in [`cloud/`](cloud/).
+
+One host is free, no time limit. [Explore DockTail Cloud](https://docktail.org/cloud/) · [open the dashboard](https://cloud.docktail.org/login) · [agent setup](docs/06-cloud.md)
+
 ## Documentation
 
 - Human docs: https://docktail.org/docs/
@@ -127,7 +148,7 @@ labels:
 - Full LLM docs: https://docktail.org/llms-full.txt
 
 - DockTail Cloud overview: https://docktail.org/cloud/
-- Optional Cloud agent setup: [`docs/08-cloud.md`](docs/08-cloud.md)
+- Optional Cloud agent setup: [`docs/06-cloud.md`](docs/06-cloud.md)
 
 The canonical documentation source lives in [`docs/`](docs/). Website docs are generated from those Markdown files.
 

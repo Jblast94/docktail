@@ -92,6 +92,7 @@ DockTail uses native Tailscale Services, not per-container Tailscale devices.
 - Supports multiple Tailscale services from one container.
 - Reconciles state when containers restart and container IPs change.
 - Runs as a stateless Docker container.
+- Optionally reports to [DockTail Cloud](#docktail-cloud) for multi-host monitoring and alerting. Opt-in via one environment variable; inert when unset.
 
 ## Recommended Reading Order
 
@@ -99,4 +100,5 @@ DockTail uses native Tailscale Services, not per-container Tailscale devices.
 2. Read [Installation](#installation) for host Tailscale and sidecar options.
 3. Configure Tailscale permissions in [Tailscale Admin Setup](#tailscale-admin-setup).
 4. Use [Labels](#labels) and [Examples](#examples) when exposing real services.
-5. Check [Reference](#reference) for all labels, environment variables, protocols, and behavior notes.
+5. See [DockTail Cloud](#docktail-cloud) if you want monitoring and alerting across your hosts.
+6. Check [Reference](#reference) for all labels, environment variables, protocols, and behavior notes.
