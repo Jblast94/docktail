@@ -18,7 +18,9 @@
   <meta name="keywords" content="docker monitoring, tailscale monitoring, docktail cloud, container alerts, service monitoring, homelab monitoring">
   <link rel="canonical" href="https://docktail.org/cloud/">
   <link rel="sitemap" type="application/xml" href="/sitemap.xml">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍸</text></svg>">
+  <link rel="icon" href="/assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/assets/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180">
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -83,16 +85,20 @@
   <nav class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
       <div class="flex items-center gap-3 sm:gap-5">
-        <a href="/" class="text-lg font-bold tracking-tight text-gray-900">docktail</a>
+        <a href="/" class="inline-flex items-center gap-2 text-lg font-bold tracking-tight text-gray-900">
+          <img src="/assets/docktail-logo.webp" width="28" height="28" alt="" class="h-7 w-7 object-contain">
+          <span>docktail</span>
+        </a>
         <span class="text-gray-300">/</span>
         <span class="text-sm text-gray-500">cloud</span>
       </div>
       <div class="flex items-center gap-4 sm:gap-6">
         <a href="/docs/" class="hidden sm:inline text-sm text-gray-500 hover:text-gray-900 transition-colors">docs</a>
+        <a href="/cloud/" aria-current="page" class="hidden sm:inline text-sm text-gray-900 transition-colors">cloud</a>
         <a href="https://github.com/marvinvr/docktail" class="hidden sm:inline text-sm text-gray-500 hover:text-gray-900 transition-colors">github</a>
         <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=cloud_nav"
            class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors">
-          Open Cloud
+          Open DockTail Cloud
         </a>
       </div>
     </div>
@@ -107,13 +113,13 @@
           <div class="enter">
             <div class="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] uppercase tracking-wider text-gray-500 mb-6">
               <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-              Hosted monitoring for DockTail
+              Hosted monitoring for your entire stack
             </div>
             <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-gray-900 leading-[1.08] mb-5">
-              Know when your services break.<br class="hidden sm:block"> Know why.
+              Stop checking if it's still up.
             </h1>
             <p class="text-base sm:text-lg text-gray-500 leading-relaxed max-w-xl mb-8">
-              See every DockTail host and service in one place. Cloud correlates container health, Docker events, and Tailscale serve state into incidents you can actually act on.
+              Every DockTail host and service in one view. Cloud ties container health, Docker events, and Tailscale serve state into incidents you can act on.
             </p>
             <div class="flex flex-wrap items-center gap-3 mb-5">
               <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=cloud_hero"
@@ -142,7 +148,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-[9rem_1fr] min-h-[25rem]">
               <aside class="hidden sm:block border-r border-gray-200 bg-gray-50 p-3" aria-hidden="true">
                 <div class="flex items-center gap-2 px-2 py-2 mb-4">
-                  <span class="text-base">🍸</span>
+                  <img src="/assets/docktail-logo.webp" width="18" height="18" alt="" class="h-[18px] w-[18px] object-contain">
                   <span class="text-[11px] font-semibold">DockTail Cloud</span>
                 </div>
                 <div class="space-y-1 text-[10px] text-gray-400">
@@ -212,7 +218,7 @@
         <div class="max-w-2xl mb-10">
           <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">The useful distinction</p>
           <h2 id="how-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">Not every outage is the same outage.</h2>
-          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">A plain uptime check stops at “down.” DockTail Cloud already has the Docker and Tailscale context needed to narrow the problem before you open a terminal.</p>
+          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">A plain uptime check stops at “down.” Cloud already has the Docker and Tailscale context — so it narrows the cause before you open a terminal.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -222,7 +228,7 @@
               <span class="text-[10px] text-gray-400">local down</span>
             </div>
             <h3 class="text-sm font-semibold text-gray-900 mb-2">The app itself failed.</h3>
-            <p class="text-sm text-gray-500 leading-relaxed mb-5">See exit codes, OOM kills, restart loops, Docker health changes, resource context, and the bounded log tail captured for the incident.</p>
+            <p class="text-sm text-gray-500 leading-relaxed mb-5">Exit codes, OOM kills, restart loops, health changes, and the log tail captured at failure.</p>
             <div class="rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-red-300">● down</span> · exit 137 · likely OOM</div>
           </article>
 
@@ -231,8 +237,8 @@
               <span class="inline-flex items-center gap-1.5 text-xs text-amber-700"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Exposure problem</span>
               <span class="text-[10px] text-gray-400">local up</span>
             </div>
-            <h3 class="text-sm font-semibold text-gray-900 mb-2">The app works, but is not served.</h3>
-            <p class="text-sm text-gray-500 leading-relaxed mb-5">The container answers locally, while the host reports that its Tailscale service is no longer published. Fix exposure instead of restarting a healthy app.</p>
+            <h3 class="text-sm font-semibold text-gray-900 mb-2">The app's up — but unreachable.</h3>
+            <p class="text-sm text-gray-500 leading-relaxed mb-5">The container answers locally, but its Tailscale service isn't published. Fix exposure, don't restart a healthy app.</p>
             <div class="rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-green-300">● local up</span> · <span class="text-amber-300">tailnet not served</span></div>
           </article>
 
@@ -242,7 +248,7 @@
               <span class="text-[10px] text-gray-400">no heartbeat</span>
             </div>
             <h3 class="text-sm font-semibold text-gray-900 mb-2">The whole host disappeared.</h3>
-            <p class="text-sm text-gray-500 leading-relaxed mb-5">Cloud notices when the agent stops reporting, even if the monitoring host itself is what failed. Recovery is recorded when it returns.</p>
+            <p class="text-sm text-gray-500 leading-relaxed mb-5">Detection runs in Cloud, not on the box — so a host that drops off still pages you, and logs its recovery when it's back.</p>
             <div class="rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-red-300">● host offline</span> · heartbeat missing</div>
           </article>
         </div>
@@ -291,7 +297,7 @@
           <div class="order-1 lg:order-2">
             <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">One operational view</p>
             <h2 id="fleet-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">Your fleet, without the tab collection.</h2>
-            <p class="text-sm sm:text-base text-gray-500 leading-relaxed mb-8">Search every service and host from one workspace, then follow a problem from the alert to the exact incident evidence.</p>
+            <p class="text-sm sm:text-base text-gray-500 leading-relaxed mb-8">Search every service and host from one workspace — then trace any alert to the incident evidence behind it.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
               <div>
                 <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Service catalog</h3>
@@ -299,15 +305,15 @@
               </div>
               <div>
                 <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Docker inventory</h3>
-                <p class="text-xs text-gray-500 leading-relaxed">See the rest of each host's containers and opt in to failure alerts for the ones you care about.</p>
+                <p class="text-xs text-gray-500 leading-relaxed">Every other container on the host — with opt-in failure alerts for the ones you care about.</p>
               </div>
               <div>
                 <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Quiet incident lifecycle</h3>
-                <p class="text-xs text-gray-500 leading-relaxed">Debounced opens, held-down recoveries, and flap suppression reduce alert storms.</p>
+                <p class="text-xs text-gray-500 leading-relaxed">Debounced opens, confirmed recoveries, flap suppression — no alert storms.</p>
               </div>
               <div>
                 <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Alerts where you work</h3>
-                <p class="text-xs text-gray-500 leading-relaxed">Slack, Telegram, ntfy, webhook, and plan-gated email delivery.</p>
+                <p class="text-xs text-gray-500 leading-relaxed">Slack, Telegram, ntfy, webhook, and email.</p>
               </div>
             </div>
           </div>
@@ -336,14 +342,14 @@
           <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 sm:p-8 text-white">
             <p class="text-xs uppercase tracking-wider text-gray-500 mb-3">Privacy</p>
             <h2 class="text-xl sm:text-2xl font-bold tracking-tight mb-3">Nothing hidden.</h2>
-            <p class="text-sm text-gray-400 leading-relaxed mb-7">The software beside your containers should be easy to inspect, and the data it shares should stay under your control.</p>
+            <p class="text-sm text-gray-400 leading-relaxed mb-7">The software next to your containers should be inspectable. The data it sends should stay yours.</p>
 
             <div class="space-y-5">
               <div class="flex gap-4">
                 <svg class="mt-0.5 h-5 w-5 shrink-0 text-green-300" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>
                 <div>
                   <div class="text-sm text-gray-100">Open-source agent</div>
-                  <p class="mt-1 text-xs leading-relaxed text-gray-500">The complete DockTail client, including Cloud reporting, is public and inspectable.</p>
+                  <p class="mt-1 text-xs leading-relaxed text-gray-500">The whole DockTail client — Cloud reporting included — is open source.</p>
                 </div>
               </div>
 
@@ -351,7 +357,7 @@
                 <svg class="mt-0.5 h-5 w-5 shrink-0 text-green-300" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg>
                 <div>
                   <div class="text-sm text-gray-100">Encrypted in transit</div>
-                  <p class="mt-1 text-xs leading-relaxed text-gray-500">Everything sent to Cloud travels over an encrypted WebSocket Secure connection.</p>
+                  <p class="mt-1 text-xs leading-relaxed text-gray-500">Everything to Cloud rides an encrypted WebSocket (WSS).</p>
                 </div>
               </div>
 
@@ -444,7 +450,7 @@
         <div class="rounded-lg border border-gray-800 bg-gray-900 px-6 py-10 sm:px-10 sm:py-12 text-center">
           <div class="inline-flex items-center gap-2 text-[11px] uppercase tracking-wider text-gray-500 mb-4"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> No card required</div>
           <h2 id="cta-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-3">Monitor one host for free.</h2>
-          <p class="max-w-xl mx-auto text-sm text-gray-400 leading-relaxed mb-7">Running a single-host setup? The Free plan has no time limit. Monitor that host, its DockTail services, incidents, and one alert channel for as long as it fits — upgrade when your system grows.</p>
+          <p class="max-w-xl mx-auto text-sm text-gray-400 leading-relaxed mb-7">One host, free, no time limit — its services, incidents, and one alert channel included. Upgrade when you outgrow it.</p>
           <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=final_cta"
              class="inline-flex items-center rounded bg-white px-4 py-2 text-sm text-gray-900 hover:bg-gray-100 transition-colors">Start monitoring · 1 host free</a>
         </div>
@@ -456,13 +462,26 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
         <a href="/" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">docktail</a>
-        <div class="flex flex-wrap justify-center items-center gap-x-6 gap-y-3">
-          <a href="/" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">OSS</a>
-          <a href="/docs/" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Docs</a>
+        <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
           <a href="https://github.com/marvinvr/docktail" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">GitHub</a>
-          <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=cloud_footer" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Open Cloud</a>
+          <a href="/docs/" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Docs</a>
+          <a href="/cloud/" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Cloud</a>
+          <a href="/docs.md" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Markdown</a>
+          <a href="/llms.txt" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Agents</a>
+          <a href="https://tailscale.com/kb/1552/tailscale-services" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Tailscale Services</a>
         </div>
+      </div>
+      <div class="mt-6 flex flex-col items-center gap-3">
         <span class="text-xs text-gray-400">built by <a href="https://marvinvr.ch" class="text-gray-500 hover:text-gray-700 transition-colors">marvinvr</a></span>
+        <a
+          href="https://github.com/sponsors/marvinvr?o=esb"
+          class="inline-flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50"
+        >
+          <svg class="h-3.5 w-3.5 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m21 8.25c0-2.485-2.239-4.5-5-4.5-1.74 0-3.273.88-4.165 2.217A4.98 4.98 0 0 0 7.67 3.75c-2.761 0-5 2.015-5 4.5 0 7.22 9.165 12 9.165 12S21 15.47 21 8.25Z"></path>
+          </svg>
+          <span>Sponsor</span>
+        </a>
       </div>
     </div>
   </footer>

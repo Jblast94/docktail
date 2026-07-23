@@ -21,7 +21,9 @@
   <link rel="alternate" type="text/markdown" href="/docs.md" title="DockTail documentation in Markdown">
   <link rel="alternate" type="text/plain" href="/llms.txt" title="DockTail guide for agents">
   <link rel="alternate" type="text/plain" href="/llms-full.txt" title="DockTail full documentation for agents">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍸</text></svg>">
+  <link rel="icon" href="/assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/assets/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180">
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -181,11 +183,18 @@
   <!-- Nav -->
   <nav class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-      <a href="/" class="text-lg font-bold tracking-tight text-gray-900">docktail</a>
-      <div class="flex items-center gap-6">
-        <a href="/docs/" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">docs</a>
-        <a href="/cloud/?utm_source=docktail_org&amp;utm_medium=nav" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">cloud</a>
-        <a href="https://github.com/marvinvr/docktail" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">github</a>
+      <a href="/" class="inline-flex items-center gap-2 text-lg font-bold tracking-tight text-gray-900">
+        <img src="/assets/docktail-logo.webp" width="28" height="28" alt="" class="h-7 w-7 object-contain">
+        <span>docktail</span>
+      </a>
+      <div class="flex items-center gap-4 sm:gap-6">
+        <a href="/docs/" class="hidden sm:inline text-sm text-gray-500 hover:text-gray-900 transition-colors">docs</a>
+        <a href="/cloud/?utm_source=docktail_org&amp;utm_medium=nav" class="hidden sm:inline text-sm text-gray-500 hover:text-gray-900 transition-colors">cloud</a>
+        <a href="https://github.com/marvinvr/docktail" class="hidden sm:inline text-sm text-gray-500 hover:text-gray-900 transition-colors">github</a>
+        <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=nav"
+           class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors">
+          Open DockTail Cloud
+        </a>
       </div>
     </div>
   </nav>
@@ -215,31 +224,6 @@
           <span id="star-count" class="hidden items-center gap-1.5 border-l border-gray-200 pl-2.5 ml-1 text-gray-400">
             <svg class="w-3.5 h-3.5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             <span id="star-value" class="relative top-px"></span>
-          </span>
-        </a>
-      </div>
-
-      <!-- Featured on Tailscale Community Projects -->
-      <div class="mt-6 flex justify-center">
-        <a href="https://tailscale.com/community/community-projects/docktail"
-           target="_blank" rel="noopener"
-           class="group inline-flex items-center gap-3 pl-3.5 pr-5 py-2 bg-gray-900 border border-white/10 rounded-xl hover:bg-gray-800 hover:border-white/20 transition-colors"
-           aria-label="Featured on Tailscale Community Projects">
-          <!-- Tailscale mark: solid = middle row + bottom-center, dim = rest -->
-          <svg class="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true">
-            <circle cx="3"  cy="3"  r="3" opacity="0.32"/>
-            <circle cx="12" cy="3"  r="3" opacity="0.32"/>
-            <circle cx="21" cy="3"  r="3" opacity="0.32"/>
-            <circle cx="3"  cy="12" r="3"/>
-            <circle cx="12" cy="12" r="3"/>
-            <circle cx="21" cy="12" r="3"/>
-            <circle cx="3"  cy="21" r="3" opacity="0.32"/>
-            <circle cx="12" cy="21" r="3"/>
-            <circle cx="21" cy="21" r="3" opacity="0.32"/>
-          </svg>
-          <span class="flex flex-col leading-none text-left">
-            <span class="text-[10px] tracking-[0.18em] uppercase text-gray-400 font-semibold">Featured on</span>
-            <span class="mt-1 text-sm font-bold text-white tracking-tight">Tailscale Community Projects</span>
           </span>
         </a>
       </div>
@@ -315,6 +299,31 @@
           </div>
 
         </div>
+      </div>
+
+      <!-- Featured on Tailscale Community Projects -->
+      <div class="mt-10 sm:mt-12 flex justify-center">
+        <a href="https://tailscale.com/community/community-projects/docktail"
+           target="_blank" rel="noopener"
+           class="group inline-flex items-center gap-3 pl-3.5 pr-5 py-2 bg-gray-900 border border-white/10 rounded-xl hover:bg-gray-800 hover:border-white/20 transition-colors"
+           aria-label="Featured on Tailscale Community Projects">
+          <!-- Tailscale mark: solid = middle row + bottom-center, dim = rest -->
+          <svg class="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true">
+            <circle cx="3"  cy="3"  r="3" opacity="0.32"/>
+            <circle cx="12" cy="3"  r="3" opacity="0.32"/>
+            <circle cx="21" cy="3"  r="3" opacity="0.32"/>
+            <circle cx="3"  cy="12" r="3"/>
+            <circle cx="12" cy="12" r="3"/>
+            <circle cx="21" cy="12" r="3"/>
+            <circle cx="3"  cy="21" r="3" opacity="0.32"/>
+            <circle cx="12" cy="21" r="3"/>
+            <circle cx="21" cy="21" r="3" opacity="0.32"/>
+          </svg>
+          <span class="flex flex-col leading-none text-left">
+            <span class="text-[10px] tracking-[0.18em] uppercase text-gray-400 font-semibold">Featured on</span>
+            <span class="mt-1 text-sm font-bold text-white tracking-tight">Tailscale Community Projects</span>
+          </span>
+        </a>
       </div>
     </div>
   </section>
@@ -489,10 +498,10 @@
             DockTail Cloud · optional
           </div>
           <h2 id="cloud-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">
-            Your services are live.<br>Know when they stop being.
+            Stop checking if it's still up.
           </h2>
           <p class="text-sm sm:text-base text-gray-500 leading-relaxed mb-6">
-            Monitor every DockTail host and service from one dashboard. Cloud combines local checks, Tailscale serve state, and Docker failure signals to tell you what broke — not just that something is down.
+            Monitor every DockTail host and service from one dashboard. Cloud combines local checks, Tailscale serve state, and Docker signals to tell you what broke — not just that something's down.
           </p>
           <div class="space-y-3 mb-7 text-sm text-gray-600">
             <div class="flex items-start gap-3">
@@ -672,11 +681,19 @@
           localStorage.setItem(KEY, JSON.stringify({ v: d.stargazers_count, t: Date.now() }));
           show(d.stargazers_count);
         }).catch(function() {});
+      function fmt(n) {
+        if (n < 1000) return String(n);
+        if (n < 10000) {
+          var t = Math.floor(n / 100) / 10;
+          return (t % 1 === 0 ? t : t.toFixed(1)) + 'k';
+        }
+        return Math.floor(n / 1000) + 'k';
+      }
       function show(n) {
         var wrap = document.getElementById('star-count');
         var val = document.getElementById('star-value');
         if (!wrap || !val) return;
-        val.textContent = n;
+        val.textContent = fmt(n);
         wrap.classList.remove('hidden');
         wrap.classList.add('inline-flex');
       }

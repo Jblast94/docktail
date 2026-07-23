@@ -698,19 +698,25 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
   <!-- Nav -->
   <nav class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-      <div class="flex items-center gap-6">
-        <a href="/" class="text-lg font-bold tracking-tight text-gray-900">docktail</a>
-        <span class="text-gray-300">/</span>
-        <span class="text-sm text-gray-500">docs</span>
-      </div>
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-3 sm:gap-5">
         <button id="sidebar-toggle" class="lg:hidden text-gray-500 hover:text-gray-900 transition-colors" aria-label="Open documentation navigation">
           <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
-        <a href="/cloud/?utm_source=docktail_org&amp;utm_medium=docs_nav" class="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:inline">cloud</a>
-        <a href="/docs.md" class="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:inline">markdown</a>
-        <a href="/llms.txt" class="text-sm text-gray-500 hover:text-gray-900 transition-colors hidden sm:inline">agents</a>
-        <a href="https://github.com/marvinvr/docktail" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">github</a>
+        <a href="/" class="inline-flex items-center gap-2 text-lg font-bold tracking-tight text-gray-900">
+          <img src="/assets/docktail-logo.webp" width="28" height="28" alt="" class="h-7 w-7 object-contain">
+          <span>docktail</span>
+        </a>
+        <span class="text-gray-300">/</span>
+        <span class="text-sm text-gray-500">docs</span>
+      </div>
+      <div class="flex items-center gap-4 sm:gap-6">
+        <a href="/docs/" aria-current="page" class="hidden sm:inline text-sm text-gray-900 transition-colors">docs</a>
+        <a href="/cloud/?utm_source=docktail_org&amp;utm_medium=docs_nav" class="hidden sm:inline text-sm text-gray-500 hover:text-gray-900 transition-colors">cloud</a>
+        <a href="https://github.com/marvinvr/docktail" class="hidden sm:inline text-sm text-gray-500 hover:text-gray-900 transition-colors">github</a>
+        <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=docs_nav"
+           class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors">
+          Open DockTail Cloud
+        </a>
       </div>
     </div>
   </nav>
@@ -730,6 +736,10 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
                 {{ end }}
               </div>
             {{ end }}
+            <div class="pt-4 mt-4 border-t border-gray-200">
+              <a href="/docs.md" class="block px-3 py-1.5 rounded text-gray-400 hover:text-gray-900 transition-colors">markdown</a>
+              <a href="/llms.txt" class="block px-3 py-1.5 rounded text-gray-400 hover:text-gray-900 transition-colors">agents</a>
+            </div>
           </nav>
         </div>
       </aside>
@@ -741,17 +751,18 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
         <!-- Footer -->
         <div class="border-t border-gray-200 pt-8 pb-16 mt-16">
           <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <span class="text-xs text-gray-400">docktail · generated {{ .GeneratedAt }}</span>
+            <a href="/" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">docktail</a>
             <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
               <a href="https://github.com/marvinvr/docktail" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">GitHub</a>
+              <a href="/docs/" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Docs</a>
               <a href="/cloud/?utm_source=docktail_org&amp;utm_medium=docs_footer" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Cloud</a>
-              <a href="https://tailscale.com/kb/1552/tailscale-services" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Tailscale Services</a>
               <a href="/docs.md" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Markdown</a>
               <a href="/llms.txt" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Agents</a>
-              <a href="https://marvinvr.ch" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">marvinvr</a>
+              <a href="https://tailscale.com/kb/1552/tailscale-services" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Tailscale Services</a>
             </div>
           </div>
-          <div class="mt-6 flex justify-center">
+          <div class="mt-6 flex flex-col items-center gap-3">
+            <span class="text-xs text-gray-400">AGPL v3 · built by <a href="https://marvinvr.ch" class="text-gray-500 hover:text-gray-700 transition-colors">marvinvr</a> · generated {{ .GeneratedAt }}</span>
             <a
               href="https://github.com/sponsors/marvinvr?o=esb"
               class="inline-flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50"
