@@ -41,7 +41,12 @@ These variables enable optional DockTail Cloud reporting. They are opt-in: the a
 | --- | --- | --- |
 | `DOCKTAIL_CLOUD_KEY` | - | Workspace key (`dtc_...`) from the cloud dashboard. Enables reporting. Inert when unset. |
 | `DOCKTAIL_LOG_LEVEL` | `info` | Log level for the cloud module: `debug`, `info`, `warn`, or `error`. |
-| `DOCKTAIL_CHECK_INTERVAL` | `30s` | How often local-vantage checks run. |
+| `DOCKTAIL_CHECK_INTERVAL` | `30s` | How often local-vantage checks run (5s–5m). |
+
+Local-development overrides: `DOCKTAIL_CLOUD_URL` replaces the built-in ingest
+endpoint. `ws://` is allowed for loopback endpoints; non-loopback plaintext
+requires `DOCKTAIL_CLOUD_ALLOW_INSECURE=true` and must never be used in
+production. Non-loopback production endpoints must use `wss://`.
 
 ### Supported Protocols
 

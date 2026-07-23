@@ -15,7 +15,7 @@ const (
 	TypeContainers   MessageType = "containers"    // non-docktail container inventory (metadata only)
 	TypeEvent        MessageType = "event"         // a single docker failure signal
 	TypeCheckResults MessageType = "check_results" // batched local-vantage probes
-	TypeLogExcerpt   MessageType = "log_excerpt"   // last N lines on incident (on by default)
+	TypeLogExcerpt   MessageType = "log_excerpt"   // opt-in last N lines on incident
 	TypeHeartbeat    MessageType = "heartbeat"     // liveness, every HeartbeatInterval
 	TypeHostMetrics  MessageType = "host_metrics"  // periodic whole-host resource vitals
 	TypeTailnet      MessageType = "tailnet"       // local netmap view: peer device liveness
@@ -233,7 +233,7 @@ type CheckResult struct {
 }
 
 // LogExcerpt carries the last N lines of a service's logs on incident. Capture
-// is on by default and gated by LogConfig; capped at MaxLogLines / MaxLogBytes.
+// is opt-in via LogConfig and capped at MaxLogLines / MaxLogBytes.
 type LogExcerpt struct {
 	ServiceKey  string   `json:"service_key"`
 	ContainerID string   `json:"container_id"`
@@ -366,21 +366,35 @@ type Config struct {
 // LogConfig controls incident log capture. Mode is the workspace default and
 // Overrides set a per-service mode; the effective mode for a service is
 // Overrides[serviceKey] when present, else Mode (an empty Mode means the default
-// LogModeIncident). Continuous capture is reserved and not yet emitted.
+// LogModeOff). Continuous capture is reserved and not yet emitted.
 type LogConfig struct {
-	Mode      string            `json:"mode"`                // LogMode*; "" ⇒ LogModeIncident
+	Mode      string            `json:"mode"`                // LogMode*; "" ⇒ LogModeOff
 	Overrides map[string]string `json:"overrides,omitempty"` // service_key -> LogMode*
 }
 
-// CheckConfig configures a single local-vantage check.
+// CheckConfig configures a single local-vantage check. The destination is never
+// cloud-controlled: the agent derives it from the locally discovered service.
 type CheckConfig struct {
 	ServiceKey   string `json:"service_key"`
-	Kind         string `json:"kind"`             // tcp/http
-	Target       string `json:"target,omitempty"` // host:port override; default derived from snapshot
-	Path         string `json:"path,omitempty"`   // http path
+	Kind         string `json:"kind"`           // tcp/http
+	Path         string `json:"path,omitempty"` // bounded relative HTTP path; default /
 	ExpectStatus int    `json:"expect_status,omitempty"`
 	IntervalMS   int64  `json:"interval_ms"`
 }
+
+// Cloud-to-agent configuration limits. The frame cap is enforced before JSON
+// decoding by the agent; the item and field caps are enforced again after
+// decoding and by the control-plane write path.
+const (
+	MaxCloudFrameBytes      int64 = 256 << 10
+	MaxCheckConfigs               = 512
+	MaxLogOverrides               = 512
+	MaxCheckServiceKeyBytes       = 256
+	MaxCheckPathBytes             = 2048
+	MinCheckIntervalMS      int64 = 5_000
+	DefaultCheckIntervalMS  int64 = 30_000
+	MaxCheckIntervalMS      int64 = 300_000
+)
 
 // ---------------------------------------------------------------------------
 // Shared vocabulary
@@ -415,7 +429,7 @@ const (
 // Log capture modes — the workspace default ([LogConfig.Mode]) and per-service
 // overrides ([LogConfig.Overrides]) both use these.
 const (
-	LogModeIncident   = "incident"   // capture the tail on a down-signal event (default)
-	LogModeOff        = "off"        // never capture
+	LogModeIncident   = "incident"   // capture the tail on a down-signal event
+	LogModeOff        = "off"        // never capture (default)
 	LogModeContinuous = "continuous" // reserved: rolling capture, not yet implemented
 )

@@ -210,7 +210,11 @@
       "required": ["version"],
       "properties": {
         "version": { "type": "integer" },
-        "checks": { "type": "array", "items": { "$ref": "#/$defs/CheckConfig" } },
+        "checks": {
+          "type": "array",
+          "maxItems": 512,
+          "items": { "$ref": "#/$defs/CheckConfig" }
+        },
         "logs": { "$ref": "#/$defs/LogConfig" },
         "unmonitored": { "type": "boolean" },
         "log_opt_in": { "type": "array", "items": { "type": "string" } }
@@ -219,23 +223,34 @@
     "LogConfig": {
       "type": "object",
       "properties": {
-        "mode": { "type": "string", "enum": ["incident", "off", "continuous"] },
+        "mode": { "type": "string", "enum": ["incident", "off", "continuous"], "default": "off" },
         "overrides": {
           "type": "object",
+          "maxProperties": 512,
+          "propertyNames": { "minLength": 1, "maxLength": 256 },
           "additionalProperties": { "type": "string", "enum": ["incident", "off", "continuous"] }
         }
       }
     },
     "CheckConfig": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["service_key", "kind"],
       "properties": {
-        "service_key": { "type": "string" },
+        "service_key": { "type": "string", "minLength": 1, "maxLength": 256 },
         "kind": { "type": "string", "enum": ["tcp", "http"] },
-        "target": { "type": "string" },
-        "path": { "type": "string" },
-        "expect_status": { "type": "integer" },
-        "interval_ms": { "type": "integer" }
+        "path": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^(?:|/(?!/)[^#\\\\\\u0000-\\u001f\\u007f]*)$"
+        },
+        "expect_status": {
+          "anyOf": [
+            { "const": 0 },
+            { "type": "integer", "minimum": 100, "maximum": 599 }
+          ]
+        },
+        "interval_ms": { "type": "integer", "minimum": 5000, "maximum": 300000, "default": 30000 }
       }
     }
   }

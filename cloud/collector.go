@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -50,7 +51,7 @@ type Collector struct {
 	conn         *wsConn             // current live connection, or nil when disconnected
 	latest       []proto.Service     // last computed snapshot (sent on (re)connect)
 	checks       []proto.CheckConfig // cloud-pushed check config
-	logMode      string              // workspace default capture mode ("" ⇒ proto.LogModeIncident)
+	logMode      string              // workspace default capture mode ("" ⇒ proto.LogModeOff)
 	logOverrides map[string]string   // per-service capture mode override (service key -> proto.LogMode*)
 	checkFails   map[string]int      // consecutive local-check failures per service key, for incident log capture
 	cfgVer       int
@@ -90,6 +91,9 @@ type containerStats struct {
 // daemon reader used to source the tailnet vantage from the host's own netmap;
 // pass nil (or a client with no tailnet) to run without the tailnet vantage.
 func NewCollector(ctx context.Context, cfg Config, dc *docker.Client, ts tailnetSource, logger zerolog.Logger) (*Collector, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, fmt.Errorf("cloud config: %w", err)
+	}
 	fp, err := dc.EngineID(ctx)
 	if err != nil {
 		return nil, err
@@ -509,7 +513,7 @@ func atoiPtr(s string) (*int, bool) {
 }
 
 // maybeCaptureLogs captures + sends a log excerpt for docker down-signal events
-// unless the service's effective capture mode is off. Capture is on by default.
+// only when the service's effective capture mode enables it.
 // health_status is captured only on the unhealthy transition — the only one the
 // cloud opens an incident for; healthy/starting transitions carry no incident.
 func (c *Collector) maybeCaptureLogs(ctx context.Context, conn *wsConn, ev proto.Event) {
@@ -1000,7 +1004,8 @@ func (c *Collector) applyConfig(cfg proto.Config) {
 		return
 	}
 	c.cfgVer = cfg.Version
-	c.checks = cfg.Checks
+	checks, rejectedChecks := proto.SanitizeCheckConfigs(cfg.Checks)
+	c.checks = checks
 
 	// On the monitored→unmonitored transition, zero the teaser timer so the next
 	// discover tick emits one snapshot immediately (populating the catalog teaser)
@@ -1011,7 +1016,7 @@ func (c *Collector) applyConfig(cfg proto.Config) {
 	c.unmonitored = cfg.Unmonitored
 
 	mode := cfg.Logs.Mode
-	overrides := cfg.Logs.Overrides
+	overrides, rejectedOverrides := proto.SanitizeLogOverrides(cfg.Logs.Overrides)
 	legacyLogOptIn := cfg.LogOptIn //nolint:staticcheck // Required for compatibility with older control planes.
 	if mode == "" && len(overrides) == 0 && len(legacyLogOptIn) > 0 {
 		// Legacy config from an older cloud: only the listed service keys
@@ -1022,19 +1027,27 @@ func (c *Collector) applyConfig(cfg proto.Config) {
 		for _, k := range legacyLogOptIn {
 			overrides[k] = proto.LogModeIncident
 		}
+		var legacyRejected int
+		overrides, legacyRejected = proto.SanitizeLogOverrides(overrides)
+		rejectedOverrides += legacyRejected
 	}
+	mode = proto.SafeLogMode(mode)
 	c.logMode = mode
 	c.logOverrides = overrides
 
-	logMode := mode
-	if logMode == "" {
-		logMode = proto.LogModeIncident
-	}
-	c.log.Info().Int("version", cfg.Version).Int("checks", len(cfg.Checks)).Str("log_mode", logMode).Int("log_overrides", len(overrides)).Bool("unmonitored", cfg.Unmonitored).Msg("cloud: applied config")
+	c.log.Info().
+		Int("version", cfg.Version).
+		Int("checks", len(checks)).
+		Int("rejected_checks", rejectedChecks).
+		Str("log_mode", mode).
+		Int("log_overrides", len(overrides)).
+		Int("rejected_log_overrides", rejectedOverrides).
+		Bool("unmonitored", cfg.Unmonitored).
+		Msg("cloud: applied config")
 }
 
 // logModeFor returns the effective capture mode for a service key: its override
-// when set, else the workspace default, else the built-in default (incident).
+// when set, else the workspace default, else the built-in default (off).
 func (c *Collector) logModeFor(serviceKey string) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -1042,7 +1055,7 @@ func (c *Collector) logModeFor(serviceKey string) string {
 		return m
 	}
 	if c.logMode == "" {
-		return proto.LogModeIncident
+		return proto.LogModeOff
 	}
 	return c.logMode
 }

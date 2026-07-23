@@ -71,6 +71,7 @@ func dial(ctx context.Context, url, key string, logger zerolog.Logger) (*wsConn,
 		}
 		return nil, err
 	}
+	ws.SetReadLimit(proto.MaxCloudFrameBytes)
 	return &wsConn{
 		ws:        ws,
 		log:       logger,
@@ -125,9 +126,13 @@ func (c *wsConn) run(ctx context.Context, h handlers) error {
 
 func (c *wsConn) readLoop(h handlers) error {
 	for {
-		_, data, err := c.ws.ReadMessage()
+		messageType, data, err := c.ws.ReadMessage()
 		if err != nil {
 			return err
+		}
+		if messageType != websocket.TextMessage {
+			c.log.Warn().Int("message_type", messageType).Msg("cloud: non-text frame ignored")
+			continue
 		}
 		var env proto.Envelope
 		if derr := json.Unmarshal(data, &env); derr != nil {

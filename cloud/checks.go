@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -45,8 +46,10 @@ type serviceCheck struct {
 }
 
 // run probes every service once. Cloud check config (keyed by service key)
-// overrides defaults; services with no resolvable target are skipped.
+// selects the check shape but never its destination; services with no locally
+// discovered target are skipped.
 func (c *checker) run(ctx context.Context, services []proto.Service, configs []proto.CheckConfig) []proto.CheckResult {
+	configs, _ = proto.SanitizeCheckConfigs(configs)
 	cfgByKey := make(map[string]proto.CheckConfig, len(configs))
 	for _, cc := range configs {
 		cfgByKey[cc.ServiceKey] = cc
@@ -91,9 +94,6 @@ func resolveKind(sc serviceCheck) string {
 
 func resolveTCP(sc serviceCheck) (string, bool) {
 	svc := sc.service
-	if sc.cfg != nil && sc.cfg.Target != "" {
-		return sc.cfg.Target, true
-	}
 	host, port := checkHostPort(svc)
 	if host == "" || port == "" {
 		return "", false
@@ -101,8 +101,8 @@ func resolveTCP(sc serviceCheck) (string, bool) {
 	return net.JoinHostPort(host, port), true
 }
 
-// checkHostPort picks the address the LOCAL check should dial: the explicit
-// CheckIP/CheckPort the agent attached when the serve destination isn't reachable
+// checkHostPort picks the address the LOCAL check should dial: the locally
+// discovered CheckIP/CheckPort attached when the serve destination isn't reachable
 // from inside the agent's container (published-port mode → container IP; host-network
 // mode → docker host gateway) when present, else the serve destination
 // IPAddress/TargetPort (direct mode, or the agent sharing the host netns).
@@ -116,24 +116,16 @@ func resolveHTTP(sc serviceCheck) (target, path string, expect int, ok bool) {
 	svc := sc.service
 	path = "/"
 	if sc.cfg != nil {
-		if sc.cfg.Target != "" {
-			target = sc.cfg.Target
-		}
 		if sc.cfg.Path != "" {
 			path = sc.cfg.Path
 		}
 		expect = sc.cfg.ExpectStatus
 	}
-	if target == "" {
-		host, port := checkHostPort(svc)
-		if host == "" || port == "" {
-			return "", "", 0, false
-		}
-		target = net.JoinHostPort(host, port)
+	host, port := checkHostPort(svc)
+	if host == "" || port == "" {
+		return "", "", 0, false
 	}
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
+	target = net.JoinHostPort(host, port)
 	return target, path, expect, true
 }
 
@@ -156,9 +148,23 @@ func (c *checker) tcpCheck(ctx context.Context, key, target string) proto.CheckR
 
 func (c *checker) httpCheck(ctx context.Context, key, target, path string, expect int) proto.CheckResult {
 	res := proto.CheckResult{ServiceKey: key, Vantage: proto.VantageLocal, Kind: "http", CheckedAt: nowMillis()}
-	url := "http://" + target + path
 	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	relative, err := url.ParseRequestURI(path)
+	if err != nil {
+		res.LatencyMS = time.Since(start).Milliseconds()
+		res.OK = false
+		res.Error = "invalid relative HTTP check path"
+		res.Class = proto.ClassRefused
+		return res
+	}
+	checkURL := (&url.URL{
+		Scheme:   "http",
+		Host:     target,
+		Path:     relative.Path,
+		RawPath:  relative.RawPath,
+		RawQuery: relative.RawQuery,
+	}).String()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checkURL, nil)
 	if err != nil {
 		res.LatencyMS = time.Since(start).Milliseconds()
 		res.OK = false
