@@ -923,6 +923,7 @@ func (c *Collector) buildContainers(ctx context.Context, containers []docker.Oth
 		present[oc.ID] = struct{}{}
 		out = append(out, proto.Container{
 			ContainerID:    oc.ID,
+			IsAgent:        oc.IsAgent,
 			Name:           oc.Name,
 			Image:          oc.Image,
 			ImageTag:       oc.ImageTag,

@@ -165,7 +165,8 @@ type Containers struct {
 // read-only metadata only — no exec/deploy surface. Identity is the docker
 // ContainerID (stable within a host).
 type Container struct {
-	ContainerID    string   `json:"container_id"` // docker container id (short) — identity within host
+	ContainerID    string   `json:"container_id"`       // docker container id (short) — identity within host
+	IsAgent        bool     `json:"is_agent,omitempty"` // true for the container running this reporting agent
 	Name           string   `json:"name"`
 	Image          string   `json:"image"`
 	ImageTag       string   `json:"image_tag,omitempty"`

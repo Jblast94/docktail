@@ -85,6 +85,7 @@
       "required": ["container_id", "name", "state"],
       "properties": {
         "container_id": { "type": "string", "description": "docker container id (short); identity within host" },
+        "is_agent": { "type": "boolean", "description": "true when this container is the reporting DockTail agent" },
         "name": { "type": "string" },
         "image": { "type": "string" },
         "image_tag": { "type": "string" },

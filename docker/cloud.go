@@ -88,6 +88,7 @@ func (c *Client) GetCloudContainers(ctx context.Context) ([]*apptypes.ContainerS
 // monitored services.
 type OtherContainer struct {
 	ID             string // short container id — identity within the host
+	IsAgent        bool   // this container is running the reporting DockTail agent
 	Name           string
 	Image          string
 	ImageTag       string
@@ -113,6 +114,7 @@ func (c *Client) GetOtherContainers(ctx context.Context) ([]OtherContainer, erro
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
+	selfID := ownContainerID()
 	out := make([]OtherContainer, 0, len(containers))
 	for _, cont := range containers {
 		if isManagedContainer(cont.Labels) {
@@ -125,6 +127,7 @@ func (c *Client) GetOtherContainers(ctx context.Context) ([]OtherContainer, erro
 		image, tag := splitImageTag(cont.Image)
 		oc := OtherContainer{
 			ID:        shortContainerID(cont.ID),
+			IsAgent:   selfID != "" && cont.ID == selfID,
 			Name:      name,
 			Image:     image,
 			ImageTag:  tag,
