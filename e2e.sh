@@ -107,6 +107,43 @@ refresh_serve_status() {
     SERVE_STATUS_CACHE=$(docker exec "$TS_CONTAINER" tailscale serve status --json 2>/dev/null || echo "{}")
 }
 
+# Poll until a service reaches an exact port/protocol state. Container
+# replacement legitimately produces a brief remove-then-add window while the
+# stop/die/start events are reconciled, so update checks must wait for the final
+# state instead of sampling that transition at a fixed instant.
+wait_for_service_state() {
+    local name="svc:$1"
+    local expected_port="$2"
+    local expected_proto="$3"
+    local timeout="${4:-30}"
+    local elapsed=0
+    local actual_port is_https is_http actual_proto
+
+    while [ "$elapsed" -lt "$timeout" ]; do
+        refresh_serve_status
+        actual_port=$(echo "$SERVE_STATUS_CACHE" | jq -r ".Services[\"$name\"].TCP | keys[0] // empty" 2>/dev/null || true)
+        if [ "$actual_port" = "$expected_port" ]; then
+            is_https=$(echo "$SERVE_STATUS_CACHE" | jq -r ".Services[\"$name\"].TCP[\"$actual_port\"].HTTPS // false" 2>/dev/null || true)
+            is_http=$(echo "$SERVE_STATUS_CACHE" | jq -r ".Services[\"$name\"].TCP[\"$actual_port\"].HTTP // false" 2>/dev/null || true)
+            if [ "$is_https" = "true" ]; then
+                actual_proto="https"
+            elif [ "$is_http" = "true" ]; then
+                actual_proto="http"
+            else
+                actual_proto="tcp"
+            fi
+            if [ "$actual_proto" = "$expected_proto" ]; then
+                return 0
+            fi
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    fail "$name did not converge to $expected_proto/$expected_port within ${timeout}s"
+    return 1
+}
+
 # Check if a service exists in the serve status
 assert_service_exists() {
     local name="svc:$1"
@@ -546,11 +583,11 @@ assert_service_destination_contains "e2e-net-custom" "http://"
 
 echo "  --- Published ports (direct=false) ---"
 assert_service_exists       "e2e-net-published"
-assert_service_destination_contains "e2e-net-published" "localhost:19080"
+assert_service_destination_contains "e2e-net-published" "127.0.0.1:19080"
 
 echo "  --- Host networking ---"
 assert_service_exists       "e2e-net-host"
-assert_service_destination_contains "e2e-net-host" "localhost:80"
+assert_service_destination_contains "e2e-net-host" "127.0.0.1:80"
 
 echo "  --- target port 443 (→ http/80) ---"
 assert_service_exists       "e2e-default-target443"
@@ -697,8 +734,7 @@ docker run -d \
     nginx:alpine >/dev/null 2>&1
 
 echo "  Waiting for reconciliation after update..."
-sleep "$RECONCILE_WAIT"
-refresh_serve_status
+wait_for_service_state "e2e-update" "443" "https" "$((RECONCILE_WAIT * 3))"
 
 echo "  --- Post-update: service should be HTTPS/443 ---"
 assert_service_exists       "e2e-update"
