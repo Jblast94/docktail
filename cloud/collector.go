@@ -681,6 +681,11 @@ func (c *Collector) session(ctx context.Context, bo *backoff) (stop bool) {
 				<-runDone
 				return true
 			}
+			if ack.Reason == proto.RejectEnrollmentClosed {
+				// An operator can reopen the key's enrollment window, so keep
+				// retrying automatically without flooding the logs while closed.
+				bo.slow()
+			}
 			c.log.Warn().Str("reason", string(ack.Reason)).Msg("cloud: hello rejected — will retry")
 			connCancel()
 			<-runDone

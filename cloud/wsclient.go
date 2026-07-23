@@ -249,4 +249,8 @@ func (b *backoff) next() time.Duration {
 	return half + jitter
 }
 
+// slow moves the next delay into the 30-60s range. It is used for retryable
+// operator-actionable states where rapid reconnects cannot help.
+func (b *backoff) slow() { b.cur = maxBackoff }
+
 func (b *backoff) reset() { b.cur = 0 }

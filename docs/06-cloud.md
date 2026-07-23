@@ -71,4 +71,12 @@ When enabled, the agent reports the following operational data:
 
 ### Identity
 
-Each host is identified by its Docker engine ID, used as a stable fingerprint. Service publish state is read from the host's local Tailscale daemon; the agent does not need to report an FQDN for that vantage.
+Each host is identified by its Docker engine ID, used as a stable fingerprint.
+A workspace key can enroll multiple hosts while its enrollment window is open
+(one hour by default). After the window closes, the key continues to authenticate
+the hosts it already enrolled but cannot add another fingerprint until an
+operator reopens enrollment in the Cloud dashboard. An agent waiting for a
+reopened window retries automatically at a low rate.
+
+Service publish state is read from the host's local Tailscale daemon; the agent
+does not need to report an FQDN for that vantage.

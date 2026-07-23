@@ -337,7 +337,8 @@ type RejectCode string
 const (
 	RejectInvalidKey       RejectCode = "invalid_key"
 	RejectBlocked          RejectCode = "blocked"            // host row is blocked (per-host revocation)
-	RejectDuplicate        RejectCode = "duplicate_identity" // another live connection claims this fingerprint
+	RejectDuplicate        RejectCode = "duplicate_identity" // legacy identity-conflict rejection
+	RejectEnrollmentClosed RejectCode = "enrollment_closed"  // key is not enrolled for this host and its enrollment window is closed
 	RejectProtocolMismatch RejectCode = "protocol_mismatch"
 	RejectOverCap          RejectCode = "over_cap" // workspace past host cap grace window
 )

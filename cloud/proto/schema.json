@@ -201,7 +201,7 @@
       "properties": {
         "accepted": { "type": "boolean" },
         "host_id": { "type": "string" },
-        "reason": { "type": "string", "enum": ["invalid_key", "blocked", "duplicate_identity", "protocol_mismatch", "over_cap"] },
+        "reason": { "type": "string", "enum": ["invalid_key", "blocked", "duplicate_identity", "enrollment_closed", "protocol_mismatch", "over_cap"] },
         "config_version": { "type": "integer" },
         "server_time": { "type": "integer" }
       }
