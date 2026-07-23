@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docktail.org/schema/agent-protocol-v1.json",
+  "title": "DockTail agent protocol (v1)",
+  "description": "What the DockTail agent sends to DockTail Cloud. Metadata only: there are no exec, deploy, or shell message types, by design. Every frame is an Envelope carrying a typed payload.",
+  "type": "object",
+  "$defs": {
+    "Envelope": {
+      "type": "object",
+      "required": ["type", "ts", "payload"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["hello", "snapshot", "containers", "event", "check_results", "log_excerpt", "heartbeat", "host_metrics", "tailnet", "hello_ack", "config"]
+        },
+        "ts": { "type": "integer", "description": "unix milliseconds" },
+        "payload": { "type": "object" }
+      }
+    },
+    "Hello": {
+      "type": "object",
+      "required": ["protocol_version", "fingerprint"],
+      "properties": {
+        "protocol_version": { "type": "integer" },
+        "fingerprint": { "type": "string", "description": "docker engine ID; the host identity and billable unit" },
+        "tailscale_node_id": { "type": "string" },
+        "hostname": { "type": "string", "description": "display-only" },
+        "agent_version": { "type": "string" },
+        "docker_version": { "type": "string" },
+        "tailscale_version": { "type": "string" },
+        "capabilities": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Snapshot": {
+      "type": "object",
+      "required": ["services"],
+      "properties": {
+        "services": { "type": "array", "items": { "$ref": "#/$defs/Service" } },
+        "full": { "type": "boolean" }
+      }
+    },
+    "Service": {
+      "type": "object",
+      "required": ["key", "state"],
+      "properties": {
+        "key": { "type": "string" },
+        "service_name": { "type": "string" },
+        "container_id": { "type": "string" },
+        "container_name": { "type": "string" },
+        "image": { "type": "string" },
+        "image_tag": { "type": "string" },
+        "compose_project": { "type": "string" },
+        "compose_service": { "type": "string" },
+        "fqdn": { "type": "string" },
+        "ip_address": { "type": "string" },
+        "port": { "type": "string" },
+        "target_port": { "type": "string" },
+        "service_protocol": { "type": "string" },
+        "protocol": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "networks": { "type": "array", "items": { "type": "string" } },
+        "funnel_enabled": { "type": "boolean" },
+        "funnel_port": { "type": "string" },
+        "funnel_protocol": { "type": "string" },
+        "funnel_path": { "type": "string" },
+        "state": { "type": "string" },
+        "docker_health": { "type": "string" },
+        "restart_count": { "type": "integer" },
+        "cpu_percent": { "type": "number", "description": "live container CPU usage as % of all host cores" },
+        "mem_usage_bytes": { "type": "integer", "description": "live working-set memory (usage minus inactive file cache)" },
+        "mem_limit_bytes": { "type": "integer", "description": "effective memory limit (container limit, else host total)" }
+      }
+    },
+    "Containers": {
+      "type": "object",
+      "description": "Inventory of non-docktail containers (metadata only; no checks/incidents).",
+      "required": ["containers"],
+      "properties": {
+        "containers": { "type": "array", "items": { "$ref": "#/$defs/Container" } },
+        "full": { "type": "boolean" }
+      }
+    },
+    "Container": {
+      "type": "object",
+      "required": ["container_id", "name", "state"],
+      "properties": {
+        "container_id": { "type": "string", "description": "docker container id (short); identity within host" },
+        "name": { "type": "string" },
+        "image": { "type": "string" },
+        "image_tag": { "type": "string" },
+        "state": { "type": "string", "description": "running/exited/restarting/paused/created" },
+        "status": { "type": "string", "description": "human status line, e.g. 'Up 3 hours (healthy)'" },
+        "health": { "type": "string", "description": "healthy/unhealthy/starting (best-effort)" },
+        "compose_project": { "type": "string" },
+        "compose_service": { "type": "string" },
+        "ports": { "type": "array", "items": { "type": "string" } },
+        "created_at": { "type": "integer", "description": "unix seconds the container was created" },
+        "cpu_percent": { "type": "number", "description": "live container CPU usage as % of all host cores" },
+        "mem_usage_bytes": { "type": "integer", "description": "live working-set memory" },
+        "mem_limit_bytes": { "type": "integer", "description": "effective memory limit" }
+      }
+    },
+    "Event": {
+      "type": "object",
+      "required": ["kind", "container_id", "occurred_at"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["die", "oom", "health_status", "restart_loop", "start", "stop"] },
+        "service_key": { "type": "string" },
+        "container_id": { "type": "string" },
+        "container_name": { "type": "string" },
+        "exit_code": { "type": "integer" },
+        "restart_count": { "type": "integer" },
+        "health_status": { "type": "string" },
+        "message": { "type": "string" },
+        "occurred_at": { "type": "integer" }
+      }
+    },
+    "CheckResults": {
+      "type": "object",
+      "required": ["results"],
+      "properties": {
+        "results": { "type": "array", "items": { "$ref": "#/$defs/CheckResult" } }
+      }
+    },
+    "CheckResult": {
+      "type": "object",
+      "required": ["service_key", "vantage", "kind", "ok", "checked_at"],
+      "properties": {
+        "service_key": { "type": "string" },
+        "vantage": { "type": "string", "enum": ["local", "tailnet", "public"] },
+        "kind": { "type": "string", "enum": ["tcp", "http"] },
+        "ok": { "type": "boolean" },
+        "latency_ms": { "type": "integer" },
+        "status_code": { "type": "integer" },
+        "class": { "type": "string", "enum": ["dns", "timeout", "refused", "tls", "http_5xx", "acl_blocked", "serve", "container"] },
+        "error": { "type": "string" },
+        "checked_at": { "type": "integer" }
+      }
+    },
+    "LogExcerpt": {
+      "type": "object",
+      "required": ["service_key", "container_id", "lines", "captured_at"],
+      "properties": {
+        "service_key": { "type": "string" },
+        "container_id": { "type": "string" },
+        "lines": { "type": "array", "items": { "type": "string" }, "maxItems": 40 },
+        "byte_size": { "type": "integer", "maximum": 8192 },
+        "captured_at": { "type": "integer" }
+      }
+    },
+    "Heartbeat": {
+      "type": "object",
+      "properties": { "uptime_seconds": { "type": "integer" } }
+    },
+    "HostMetrics": {
+      "type": "object",
+      "description": "Periodic whole-host resource vitals read from the host's own /proc and /sys (the machine, not the container sum). All fields optional and best-effort.",
+      "properties": {
+        "cpu_percent": { "type": "number", "description": "host CPU utilization across all cores, 0..100" },
+        "mem_total_bytes": { "type": "integer" },
+        "mem_used_bytes": { "type": "integer", "description": "Total minus MemAvailable (discounts reclaimable cache)" },
+        "swap_total_bytes": { "type": "integer" },
+        "swap_used_bytes": { "type": "integer" },
+        "load1": { "type": "number" },
+        "load5": { "type": "number" },
+        "load15": { "type": "number" },
+        "temp_max_c": { "type": "number", "description": "hottest sensor reading in degrees Celsius" },
+        "temps": { "type": "array", "items": { "$ref": "#/$defs/TempReading" } }
+      }
+    },
+    "TempReading": {
+      "type": "object",
+      "required": ["label", "celsius"],
+      "properties": {
+        "label": { "type": "string" },
+        "celsius": { "type": "number" }
+      }
+    },
+    "TailnetReport": {
+      "type": "object",
+      "description": "The agent's view of its local tailscale netmap: peer device liveness, read from `tailscale status` over the local daemon (no API key). Used to split a silent host into agent_down vs host_down.",
+      "required": ["peers"],
+      "properties": {
+        "peers": { "type": "array", "items": { "$ref": "#/$defs/TailnetPeer" } }
+      }
+    },
+    "TailnetPeer": {
+      "type": "object",
+      "required": ["node_id", "online"],
+      "properties": {
+        "node_id": { "type": "string", "description": "tailscale StableNodeID, matched against hosts.tailscale_node_id" },
+        "hostname": { "type": "string" },
+        "online": { "type": "boolean" },
+        "last_seen": { "type": "integer", "description": "unix ms; set only when offline" }
+      }
+    },
+    "HelloAck": {
+      "type": "object",
+      "required": ["accepted"],
+      "properties": {
+        "accepted": { "type": "boolean" },
+        "host_id": { "type": "string" },
+        "reason": { "type": "string", "enum": ["invalid_key", "blocked", "duplicate_identity", "protocol_mismatch", "over_cap"] },
+        "config_version": { "type": "integer" },
+        "server_time": { "type": "integer" }
+      }
+    },
+    "Config": {
+      "type": "object",
+      "required": ["version"],
+      "properties": {
+        "version": { "type": "integer" },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/CheckConfig" } },
+        "logs": { "$ref": "#/$defs/LogConfig" },
+        "unmonitored": { "type": "boolean" },
+        "log_opt_in": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "LogConfig": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["incident", "off", "continuous"] },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "enum": ["incident", "off", "continuous"] }
+        }
+      }
+    },
+    "CheckConfig": {
+      "type": "object",
+      "required": ["service_key", "kind"],
+      "properties": {
+        "service_key": { "type": "string" },
+        "kind": { "type": "string", "enum": ["tcp", "http"] },
+        "target": { "type": "string" },
+        "path": { "type": "string" },
+        "expect_status": { "type": "integer" },
+        "interval_ms": { "type": "integer" }
+      }
+    }
+  }
+}

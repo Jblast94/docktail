@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/marvinvr/docktail/cloud"
 	"github.com/marvinvr/docktail/docker"
 	"github.com/marvinvr/docktail/reconciler"
 	"github.com/marvinvr/docktail/tailscale"
@@ -125,6 +126,23 @@ func main() {
 	// Setup signal handling
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Optional: DockTail Cloud reporting module. Completely inert unless
+	// DOCKTAIL_CLOUD_KEY is set — DockTail runs exactly as before without it.
+	if cloud.Enabled() {
+		cloudCfg := cloud.LoadConfig()
+		collector, cerr := cloud.NewCollector(ctx, cloudCfg, dockerClient, tailscaleClient, log.Logger)
+		if cerr != nil {
+			log.Error().Err(cerr).Msg("DockTail Cloud enabled but failed to initialize; continuing without it")
+		} else {
+			rec.SetObserver(collector)
+			go collector.Run(ctx)
+			log.Info().
+				Str("endpoint", cloudCfg.URL).
+				Str("fingerprint", collector.Fingerprint()).
+				Msg("DockTail Cloud reporting enabled")
+		}
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

@@ -11,11 +11,11 @@
 #     args: ["--dangerously-skip-permissions"]
 
 # Processes: commands you start/stop and watch. cwd is relative to this file.
-# processes:
-#   - name: Dev server
-#     cmd: npm
-#     args: ["run", "dev"]
-#     autostart: false
+processes:
+  - name: Website preview
+    cmd: npx
+    args: ["--yes", "live-server", "website", "--port=8080", "--no-browser", "--watch=website"]
+    autostart: false
 
 # Linked projects: other projects to show alongside this one in the same
 # workspace — any directories you want grouped together (extra clones, a

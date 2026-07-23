@@ -16,6 +16,7 @@ RUN go run ./tools/docsgen -source docs -website website
 FROM nginx:alpine
 
 COPY --from=docs /src/website/index.html /usr/share/nginx/html/index.html
+COPY --from=docs /src/website/cloud /usr/share/nginx/html/cloud
 COPY --from=docs /src/website/docs /usr/share/nginx/html/docs
 COPY --from=docs /src/website/assets /usr/share/nginx/html/assets
 COPY --from=docs /src/website/robots.txt /usr/share/nginx/html/robots.txt
