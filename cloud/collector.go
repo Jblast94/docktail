@@ -17,8 +17,9 @@ import (
 	apptypes "github.com/marvinvr/docktail/types"
 )
 
-// agentVersion is reported in Hello. Bump on releases of the cloud module.
-const agentVersion = "0.1.0"
+// agentVersion is reported in Hello. Release builds replace the development
+// value with the DockTail image tag via -ldflags.
+var agentVersion = "dev"
 
 // restartLoopThreshold is the container RestartCount above which a die is also
 // treated as a restart-loop signal.

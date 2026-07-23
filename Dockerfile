@@ -1,6 +1,8 @@
 # Build stage
 FROM golang:1.25-alpine AS builder
 
+ARG VERSION=dev
+
 WORKDIR /build
 
 # Install build dependencies
@@ -14,7 +16,9 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o docktail .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags "-w -s -X github.com/marvinvr/docktail/cloud.agentVersion=${VERSION}" \
+    -o docktail .
 
 # Tailscale binary stage — ensures CLI version matches the sidecar daemon exactly
 FROM tailscale/tailscale:latest AS tailscale

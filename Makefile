@@ -20,7 +20,7 @@ clean:
 
 # Build Docker image
 docker-build:
-	docker build -t $(DOCKER_IMAGE):$(VERSION) .
+	docker build --build-arg VERSION=$(VERSION) -t $(DOCKER_IMAGE):$(VERSION) .
 
 # Generate website documentation from docs/*.md
 docs-generate:
