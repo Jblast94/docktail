@@ -1012,13 +1012,14 @@ func (c *Collector) applyConfig(cfg proto.Config) {
 
 	mode := cfg.Logs.Mode
 	overrides := cfg.Logs.Overrides
-	if mode == "" && len(overrides) == 0 && len(cfg.LogOptIn) > 0 {
+	legacyLogOptIn := cfg.LogOptIn //nolint:staticcheck // Required for compatibility with older control planes.
+	if mode == "" && len(overrides) == 0 && len(legacyLogOptIn) > 0 {
 		// Legacy config from an older cloud: only the listed service keys
 		// captured (on incident). Map that onto the mode model so behaviour is
 		// unchanged against an older control plane.
 		mode = proto.LogModeOff
-		overrides = make(map[string]string, len(cfg.LogOptIn))
-		for _, k := range cfg.LogOptIn {
+		overrides = make(map[string]string, len(legacyLogOptIn))
+		for _, k := range legacyLogOptIn {
 			overrides[k] = proto.LogModeIncident
 		}
 	}
