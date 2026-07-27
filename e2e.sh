@@ -394,6 +394,18 @@ api_service_has_host() {
             'any(.hosts[]?; .stableNodeID == $id)' >/dev/null 2>&1
 }
 
+# Explicitly approve the independent node as a Service host. The cleanup test is
+# about preserving another host, not the tailnet's auto-approval policy.
+api_approve_service_host() {
+    local token="$1" name="$2" stable_node_id="$3"
+    curl -s -o /dev/null -w "%{http_code}" -X POST \
+        -H "Authorization: Bearer ${token}" \
+        -H "Content-Type: application/json" \
+        -d '{"approved":true}' \
+        "${API_BASE}/tailnet/${API_TAILNET}/services/${name}/device/${stable_node_id}/approved" \
+        2>/dev/null || echo "000"
+}
+
 # Assert that a Control Plane service definition carries exactly the expected
 # tags (order-independent). The tags a service carries are NOT visible in
 # `tailscale serve status`; they only live in the service definition on the
@@ -501,7 +513,7 @@ clear_otherhost_service() {
 # unpausing DockTail.
 setup_otherhost_service() {
     local token="$1" auth_key attempt inner backend_state primary_node_id
-    local connected=1 registered=1
+    local approval_status connected=1 registered=1
 
     if ! docker pause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1; then
         return 1
@@ -550,6 +562,11 @@ setup_otherhost_service() {
     for attempt in $(seq 1 6); do
         api_create_service "$token" "$OTHERHOST_SERVICE_NAME" >/dev/null
         advertise_otherhost_service || true
+        approval_status=$(api_approve_service_host \
+            "$token" "$OTHERHOST_SERVICE_NAME" "$OTHERHOST_NODE_ID")
+        if [ "$approval_status" != "200" ]; then
+            echo "  Service-host approval is not ready yet (status $approval_status)"
+        fi
         for inner in $(seq 1 5); do
             sleep 2
             if api_service_has_host "$token" "$OTHERHOST_SERVICE_NAME" "$OTHERHOST_NODE_ID"; then
