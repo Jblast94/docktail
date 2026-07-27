@@ -34,7 +34,7 @@ services:
     profiles: ["control-plane-cleanup"]
     image: tailscale/tailscale:latest
     container_name: e2e-tailscale-otherhost
-    hostname: e2e-otherhost
+    hostname: e2e-external-host
     environment:
       - TS_AUTHKEY=${TS_OTHERHOST_AUTHKEY}
       - TS_STATE_DIR=/var/lib/tailscale
