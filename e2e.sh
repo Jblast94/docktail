@@ -490,7 +490,7 @@ advertise_otherhost_service() {
     if ! configure_output=$(docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve \
         --service="$OTHERHOST_SERVICE_NAME" \
         --http="$OTHERHOST_SERVICE_PORT" \
-        http://127.0.0.1:19080 2>&1); then
+        http://test-proto-http:80 2>&1); then
         echo "  Failed to configure $OTHERHOST_SERVICE_NAME on the independent node:"
         echo "$configure_output"
         return 1
