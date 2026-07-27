@@ -410,7 +410,12 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
   <link rel="alternate" type="text/markdown" href="/docs.md" title="DockTail documentation in Markdown">
   <link rel="alternate" type="text/plain" href="/llms.txt" title="DockTail guide for agents">
   <link rel="alternate" type="text/plain" href="/llms-full.txt" title="DockTail full documentation for agents">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍸</text></svg>">
+  <link rel="icon" href="/assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/assets/favicon-light-32.png" sizes="32x32" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/png" href="/assets/favicon-dark-32.png" sizes="32x32" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon-light.png" sizes="180x180" media="(prefers-color-scheme: light)">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon-dark.png" sizes="180x180" media="(prefers-color-scheme: dark)">
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -703,7 +708,7 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
           <svg class="w-5 h-5" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
         <a href="/" class="inline-flex items-center gap-2 text-lg font-bold tracking-tight text-gray-900">
-          <img src="/assets/docktail-logo.webp" width="28" height="28" alt="" class="h-7 w-7 object-contain">
+          <img src="/assets/docktail-logo-light.webp" width="28" height="28" alt="" class="h-7 w-7 object-contain">
           <span>docktail</span>
         </a>
         <span class="text-gray-300">/</span>
