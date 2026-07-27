@@ -28,6 +28,27 @@ services:
       timeout: 5s
       retries: 30
 
+  # Independent tailnet node used to prove cleanup preserves Services that are
+  # still advertised outside the DockTail-managed Tailscale node.
+  tailscale-otherhost:
+    profiles: ["control-plane-cleanup"]
+    image: tailscale/tailscale:latest
+    container_name: e2e-tailscale-otherhost
+    hostname: e2e-otherhost
+    environment:
+      - TS_AUTHKEY=${TS_OTHERHOST_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+      - TS_EXTRA_ARGS=--advertise-tags=tag:ci-test
+    volumes:
+      - ts-otherhost-state:/var/lib/tailscale
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "tailscale", "status", "--json"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
   docktail:
     build: .
     container_name: e2e-docktail
@@ -346,3 +367,4 @@ networks:
 volumes:
   ts-state:
   ts-socket:
+  ts-otherhost-state:
