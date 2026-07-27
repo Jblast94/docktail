@@ -474,10 +474,21 @@ sweep_e2e_services() {
 
 # Advertise / stop advertising OTHERHOST service on the independent node.
 advertise_otherhost_service() {
-    docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve \
+    local configure_output advertise_output
+    if ! configure_output=$(docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve \
         --service="$OTHERHOST_SERVICE_NAME" \
         --http="$OTHERHOST_SERVICE_PORT" \
-        http://127.0.0.1:19080 >/dev/null 2>&1
+        http://127.0.0.1:19080 2>&1); then
+        echo "  Failed to configure $OTHERHOST_SERVICE_NAME on the independent node:"
+        echo "$configure_output"
+        return 1
+    fi
+    if ! advertise_output=$(docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve \
+        advertise "$OTHERHOST_SERVICE_NAME" 2>&1); then
+        echo "  Failed to advertise $OTHERHOST_SERVICE_NAME from the independent node:"
+        echo "$advertise_output"
+        return 1
+    fi
 }
 clear_otherhost_service() {
     docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve clear "$OTHERHOST_SERVICE_NAME" >/dev/null 2>&1 || true
@@ -538,7 +549,7 @@ setup_otherhost_service() {
 
     for attempt in $(seq 1 6); do
         api_create_service "$token" "$OTHERHOST_SERVICE_NAME" >/dev/null
-        advertise_otherhost_service
+        advertise_otherhost_service || true
         for inner in $(seq 1 5); do
             sleep 2
             if api_service_has_host "$token" "$OTHERHOST_SERVICE_NAME" "$OTHERHOST_NODE_ID"; then
@@ -547,6 +558,17 @@ setup_otherhost_service() {
             fi
         done
     done
+
+    if [ "$registered" != "0" ]; then
+        echo "  Independent node's local Service status:"
+        docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve status --json 2>/dev/null \
+            | jq -c --arg service "$OTHERHOST_SERVICE_NAME" \
+                '.Services[$service] // {}' 2>/dev/null || true
+        echo "  Control Plane hosts for $OTHERHOST_SERVICE_NAME:"
+        curl -s -H "Authorization: Bearer ${token}" \
+            "${API_BASE}/tailnet/${API_TAILNET}/services/${OTHERHOST_SERVICE_NAME}/devices" 2>/dev/null \
+            | jq -c '{hosts: [.hosts[]? | {stableNodeID, approvalLevel, configured}]}' 2>/dev/null || true
+    fi
 
     if ! docker unpause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1; then
         return 1
