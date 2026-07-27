@@ -38,10 +38,14 @@ services:
     environment:
       - TS_AUTHKEY=${TS_OTHERHOST_AUTHKEY}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_USERSPACE=true
+      - TS_USERSPACE=false
       - TS_EXTRA_ARGS=--advertise-tags=tag:ci-test
     volumes:
       - ts-otherhost-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
     restart: "no"
     healthcheck:
       test: ["CMD", "tailscale", "status", "--json"]

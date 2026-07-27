@@ -577,14 +577,27 @@ setup_otherhost_service() {
     done
 
     if [ "$registered" != "0" ]; then
+        echo "  Independent node's Service-host capability:"
+        docker exec "$OTHERHOST_TS_CONTAINER" tailscale status --json 2>/dev/null \
+            | jq -c '{
+                id: .Self.ID,
+                tags: .Self.Tags,
+                online: .Self.Online,
+                serviceHost: .Self.CapMap["service-host"],
+                health: .Health
+            }' 2>/dev/null || true
         echo "  Independent node's local Service status:"
         docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve status --json 2>/dev/null \
             | jq -c --arg service "$OTHERHOST_SERVICE_NAME" \
                 '.Services[$service] // {}' 2>/dev/null || true
+        echo "  Independent node's declarative Service config:"
+        docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve get-config --all 2>/dev/null || true
         echo "  Control Plane hosts for $OTHERHOST_SERVICE_NAME:"
         curl -s -H "Authorization: Bearer ${token}" \
             "${API_BASE}/tailnet/${API_TAILNET}/services/${OTHERHOST_SERVICE_NAME}/devices" 2>/dev/null \
             | jq -c '{hosts: [.hosts[]? | {stableNodeID, approvalLevel, configured}]}' 2>/dev/null || true
+        echo "  Independent Tailscale node logs (last 30 lines):"
+        docker logs --tail 30 "$OTHERHOST_TS_CONTAINER" 2>&1 || true
     fi
 
     if ! docker unpause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1; then
