@@ -3,7 +3,6 @@
 COMPOSE_FILE="docker-compose.e2e.yaml"
 E2E_SECRETS_DIR=".e2e-secrets"
 TS_CONTAINER="e2e-tailscale"
-OTHERHOST_TS_CONTAINER="e2e-tailscale-otherhost"
 DOCKTAIL_CONTAINER="e2e-docktail"
 MAX_WAIT=120
 RECONCILE_WAIT=10
@@ -12,9 +11,7 @@ MANUAL_PROTECTED_SERVICE_NAME="svc:e2e-manual-protected"
 MANUAL_PROTECTED_SERVICE_PORT="80"
 # Control-plane cleanup test fixtures (created directly via the Tailscale API)
 ORPHAN_SERVICE_NAME="svc:e2e-orphan"           # never advertised -> DockTail should delete it
-OTHERHOST_SERVICE_NAME="svc:e2e-otherhost"     # advertised by a separate node -> DockTail must keep it
-OTHERHOST_SERVICE_PORT="80"
-OTHERHOST_NODE_ID=""
+ORPHAN_SERVICE_PORT="80"
 API_TAILNET="${TS_TAILNET:--}"
 API_BASE="https://api.tailscale.com/api/v2"
 
@@ -35,9 +32,7 @@ fail() { echo "  FAIL: $1"; failed=$((failed + 1)); errors="${errors}\n  - $1"; 
 cleanup() {
     log "Cleaning up"
     kill "$TIMEOUT_PID" 2>/dev/null || true
-    docker unpause "$DOCKTAIL_CONTAINER" 2>/dev/null || true
-    docker compose -f "$COMPOSE_FILE" --profile control-plane-cleanup \
-        down -v --remove-orphans 2>/dev/null || true
+    docker compose -f "$COMPOSE_FILE" down -v --remove-orphans 2>/dev/null || true
     sweep_e2e_services
     rm -rf "$E2E_SECRETS_DIR"
 }
@@ -331,34 +326,6 @@ mint_api_token() {
         | jq -r '.access_token // empty' 2>/dev/null || echo ""
 }
 
-# Mint a single-use ephemeral auth key for an independent Tailscale test node.
-mint_ephemeral_auth_key() {
-    local token="$1"
-    curl -s -X POST "${API_BASE}/tailnet/${API_TAILNET}/keys" \
-        -H "Authorization: Bearer ${token}" \
-        -H "Content-Type: application/json" \
-        -d '{
-            "capabilities": {
-                "devices": {
-                    "create": {
-                        "reusable": false,
-                        "ephemeral": true,
-                        "tags": ["tag:ci-test"]
-                    }
-                }
-            },
-            "expirySeconds": 600
-        }' 2>/dev/null \
-        | jq -r '.key // empty' 2>/dev/null || echo ""
-}
-
-# Print a Tailscale node's stable ID from its local status.
-tailscale_node_id() {
-    local container="$1"
-    docker exec "$container" tailscale status --json 2>/dev/null \
-        | jq -r '.Self.ID // empty' 2>/dev/null || echo ""
-}
-
 # Print the HTTP status code of GET on a service definition (200 exists, 404 gone).
 api_service_status() {
     local token="$1" name="$2"
@@ -373,7 +340,7 @@ api_create_service() {
     curl -s -o /dev/null -w "%{http_code}" -X PUT \
         -H "Authorization: Bearer ${token}" \
         -H "Content-Type: application/json" \
-        -d "{\"name\":\"${name}\",\"tags\":[\"tag:ci-test-container\"],\"ports\":[\"tcp:${OTHERHOST_SERVICE_PORT}\"]}" \
+        -d "{\"name\":\"${name}\",\"tags\":[\"tag:ci-test-container\"],\"ports\":[\"tcp:${ORPHAN_SERVICE_PORT}\"]}" \
         "${API_BASE}/tailnet/${API_TAILNET}/services/${name}" 2>/dev/null || echo "000"
 }
 
@@ -383,27 +350,6 @@ api_service_comment() {
     curl -s -H "Authorization: Bearer ${token}" \
         "${API_BASE}/tailnet/${API_TAILNET}/services/${name}" 2>/dev/null \
         | jq -r '.comment // empty' 2>/dev/null || echo ""
-}
-
-# Return success only when the specified stable node ID is advertising a service.
-api_service_has_host() {
-    local token="$1" name="$2" stable_node_id="$3"
-    curl -s -H "Authorization: Bearer ${token}" \
-        "${API_BASE}/tailnet/${API_TAILNET}/services/${name}/devices" 2>/dev/null \
-        | jq -e --arg id "$stable_node_id" \
-            'any(.hosts[]?; .stableNodeID == $id)' >/dev/null 2>&1
-}
-
-# Explicitly approve the independent node as a Service host. The cleanup test is
-# about preserving another host, not the tailnet's auto-approval policy.
-api_approve_service_host() {
-    local token="$1" name="$2" stable_node_id="$3"
-    curl -s -o /dev/null -w "%{http_code}" -X POST \
-        -H "Authorization: Bearer ${token}" \
-        -H "Content-Type: application/json" \
-        -d '{"approved":true}' \
-        "${API_BASE}/tailnet/${API_TAILNET}/services/${name}/device/${stable_node_id}/approved" \
-        2>/dev/null || echo "000"
 }
 
 # Assert that a Control Plane service definition carries exactly the expected
@@ -482,128 +428,6 @@ sweep_e2e_services() {
         api_delete_service "$token" "$name"
         echo "  Swept leftover service $name"
     done
-}
-
-# Advertise / stop advertising OTHERHOST service on the independent node.
-advertise_otherhost_service() {
-    local configure_output advertise_output
-    if ! configure_output=$(docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve \
-        --service="$OTHERHOST_SERVICE_NAME" \
-        --http="$OTHERHOST_SERVICE_PORT" \
-        http://test-proto-http:80 2>&1); then
-        echo "  Failed to configure $OTHERHOST_SERVICE_NAME on the independent node:"
-        echo "$configure_output"
-        return 1
-    fi
-    if ! advertise_output=$(docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve \
-        advertise "$OTHERHOST_SERVICE_NAME" 2>&1); then
-        echo "  Failed to advertise $OTHERHOST_SERVICE_NAME from the independent node:"
-        echo "$advertise_output"
-        return 1
-    fi
-}
-clear_otherhost_service() {
-    docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve clear "$OTHERHOST_SERVICE_NAME" >/dev/null 2>&1 || true
-}
-
-# Establish OTHERHOST on a second Tailscale node that DockTail does not manage.
-# Pause DockTail while that ephemeral node joins and its advertisement propagates
-# so the five-second cleanup loop cannot delete the zero-host definition in
-# between. Verify the advertiser really has a different stable node ID before
-# unpausing DockTail.
-setup_otherhost_service() {
-    local token="$1" auth_key attempt inner backend_state primary_node_id
-    local approval_status connected=1 registered=1
-
-    if ! docker pause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1; then
-        return 1
-    fi
-
-    auth_key=$(mint_ephemeral_auth_key "$token")
-    if [ -z "$auth_key" ]; then
-        echo "  Could not mint an auth key for the independent Tailscale node"
-        docker unpause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1 || true
-        return 1
-    fi
-    TS_OTHERHOST_AUTHKEY="$auth_key"
-    export TS_OTHERHOST_AUTHKEY
-
-    if ! docker compose -f "$COMPOSE_FILE" --profile control-plane-cleanup \
-        up -d --no-deps tailscale-otherhost >/dev/null 2>&1; then
-        echo "  Could not start the independent Tailscale node"
-        docker unpause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1 || true
-        return 1
-    fi
-
-    for _ in $(seq 1 30); do
-        backend_state=$(docker exec "$OTHERHOST_TS_CONTAINER" tailscale status --json 2>/dev/null \
-            | jq -r '.BackendState // empty' 2>/dev/null || true)
-        if [ "$backend_state" = "Running" ]; then
-            connected=0
-            break
-        fi
-        sleep 2
-    done
-    if [ "$connected" != "0" ]; then
-        echo "  Independent Tailscale node did not connect"
-        docker unpause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1 || true
-        return 1
-    fi
-
-    primary_node_id=$(tailscale_node_id "$TS_CONTAINER")
-    OTHERHOST_NODE_ID=$(tailscale_node_id "$OTHERHOST_TS_CONTAINER")
-    if [ -z "$primary_node_id" ] || [ -z "$OTHERHOST_NODE_ID" ] \
-        || [ "$primary_node_id" = "$OTHERHOST_NODE_ID" ]; then
-        echo "  Independent Tailscale node did not receive a distinct stable node ID"
-        docker unpause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1 || true
-        return 1
-    fi
-
-    for attempt in $(seq 1 6); do
-        api_create_service "$token" "$OTHERHOST_SERVICE_NAME" >/dev/null
-        advertise_otherhost_service || true
-        approval_status=$(api_approve_service_host \
-            "$token" "$OTHERHOST_SERVICE_NAME" "$OTHERHOST_NODE_ID")
-        if [ "$approval_status" != "200" ]; then
-            echo "  Service-host approval is not ready yet (status $approval_status)"
-        fi
-        for inner in $(seq 1 5); do
-            sleep 2
-            if api_service_has_host "$token" "$OTHERHOST_SERVICE_NAME" "$OTHERHOST_NODE_ID"; then
-                registered=0
-                break 2
-            fi
-        done
-    done
-
-    if [ "$registered" != "0" ]; then
-        echo "  Independent node's Service-host capability:"
-        docker exec "$OTHERHOST_TS_CONTAINER" tailscale status --json 2>/dev/null \
-            | jq -c '{
-                id: .Self.ID,
-                tags: .Self.Tags,
-                online: .Self.Online,
-                serviceHost: .Self.CapMap["service-host"],
-                health: .Health
-            }' 2>/dev/null || true
-        echo "  Independent node's local Service status:"
-        docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve status --json 2>/dev/null \
-            | jq -c --arg service "$OTHERHOST_SERVICE_NAME" \
-                '.Services[$service] // {}' 2>/dev/null || true
-        echo "  Independent node's declarative Service config:"
-        docker exec "$OTHERHOST_TS_CONTAINER" tailscale serve get-config --all 2>/dev/null || true
-        echo "  Control Plane hosts for $OTHERHOST_SERVICE_NAME:"
-        curl -s -H "Authorization: Bearer ${token}" \
-            "${API_BASE}/tailnet/${API_TAILNET}/services/${OTHERHOST_SERVICE_NAME}/devices" 2>/dev/null \
-            | jq -c '{hosts: [.hosts[]? | {stableNodeID, approvalLevel, configured}]}' 2>/dev/null || true
-        echo "  Independent Tailscale node logs (last 30 lines):"
-        docker logs --tail 30 "$OTHERHOST_TS_CONTAINER" 2>&1 || true
-    fi
-
-    if ! docker unpause "$DOCKTAIL_CONTAINER" >/dev/null 2>&1; then
-        return 1
-    fi
-    return "$registered"
 }
 
 # ==============================================================================
@@ -933,15 +757,11 @@ fi
 # 13. Control Plane Cleanup of Unused Services (DELETE_UNUSED_SERVICES=true)
 # ==============================================================================
 #
-# DockTail runs with DELETE_UNUSED_SERVICES=true in this stack. During each
-# reconcile it lists tailnet Service definitions and deletes the ones that no
-# host advertises anymore, while keeping:
-#   - services DockTail currently advertises (backed by a running container), and
-#   - services advertised by some other host (the multi-instance safety guard).
-#
-# We create two fixtures directly via the API to exercise both branches:
-#   - svc:e2e-orphan     : never advertised (zero hosts)  -> must be deleted
-#   - svc:e2e-otherhost  : advertised by a separate node (>=1 host) -> must be kept
+# DockTail runs with DELETE_UNUSED_SERVICES=true in this stack. The live test
+# verifies that it deletes a zero-host definition while preserving a Service in
+# its desired set. Preservation of a Service advertised by another host is
+# covered deterministically in tailscale/client_test.go; creating that topology
+# here would make CI depend on the shared tailnet's host-approval policy.
 
 log "13. Control Plane Cleanup of Unused Services"
 
@@ -962,13 +782,6 @@ else
         fail "failed to create $ORPHAN_SERVICE_NAME via API (status $create_status)"
     fi
 
-    echo "  --- Creating a service advertised by a separate node (has a host) ---"
-    if setup_otherhost_service "$API_TOKEN"; then
-        pass "$OTHERHOST_SERVICE_NAME is advertised by a distinct Tailscale node"
-    else
-        fail "$OTHERHOST_SERVICE_NAME never registered a distinct advertising host"
-    fi
-
     echo "  --- DockTail should delete the unused service ---"
     orphan_deleted=0
     for _ in $(seq 1 20); do
@@ -984,13 +797,6 @@ else
         fail "$ORPHAN_SERVICE_NAME still exists; DockTail did not delete the unused service"
     fi
 
-    echo "  --- DockTail must keep the service advertised by another host ---"
-    if api_service_has_host "$API_TOKEN" "$OTHERHOST_SERVICE_NAME" "$OTHERHOST_NODE_ID"; then
-        pass "$OTHERHOST_SERVICE_NAME preserved (still advertised by the distinct host)"
-    else
-        fail "$OTHERHOST_SERVICE_NAME lost its distinct advertising host during reconciliation"
-    fi
-
     echo "  --- DockTail must keep the running container's service ---"
     if [ "$proto_http_before" = "200" ]; then
         if [ "$(api_service_status "$API_TOKEN" "svc:e2e-proto-http")" = "200" ]; then
@@ -1004,9 +810,7 @@ else
 
     wait_for_docktail_log "Deleting unused service definition"
 
-    echo "  --- Cleaning up cleanup-test fixtures ---"
-    clear_otherhost_service
-    api_delete_service "$API_TOKEN" "$OTHERHOST_SERVICE_NAME"
+    echo "  --- Cleaning up cleanup-test fixture ---"
     api_delete_service "$API_TOKEN" "$ORPHAN_SERVICE_NAME"
 fi
 

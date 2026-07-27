@@ -314,3 +314,67 @@ func TestSyncServiceDefinitionReconciliation(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteUnusedServiceDefinitionsUsesAdvertisingHosts(t *testing.T) {
+	const (
+		orphanService     = "svc:orphan"
+		advertisedService = "svc:advertised-elsewhere"
+	)
+
+	hostChecks := make(map[string]int)
+	var deleted []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v2/tailnet/example.com/services":
+			_ = json.NewEncoder(w).Encode(struct {
+				VIPServices []apiService `json:"vipServices"`
+			}{
+				VIPServices: []apiService{
+					{Name: orphanService},
+					{Name: advertisedService},
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v2/tailnet/example.com/services/"+orphanService+"/devices":
+			hostChecks[orphanService]++
+			_ = json.NewEncoder(w).Encode(struct {
+				Hosts []serviceHost `json:"hosts"`
+			}{Hosts: []serviceHost{}})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v2/tailnet/example.com/services/"+advertisedService+"/devices":
+			hostChecks[advertisedService]++
+			_ = json.NewEncoder(w).Encode(struct {
+				Hosts []serviceHost `json:"hosts"`
+			}{
+				Hosts: []serviceHost{{StableNodeID: "node-foreign"}},
+			})
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v2/tailnet/example.com/services/"+orphanService:
+			deleted = append(deleted, orphanService)
+			w.WriteHeader(http.StatusOK)
+		default:
+			t.Errorf("unexpected %s request to %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	c := &Client{
+		baseURL:         srv.URL,
+		tailnet:         "example.com",
+		httpClient:      srv.Client(),
+		ignoredServices: make(map[string]struct{}),
+	}
+
+	if err := c.deleteUnusedServiceDefinitions(context.Background(), nil); err != nil {
+		t.Fatalf("deleteUnusedServiceDefinitions returned error: %v", err)
+	}
+
+	if !slices.Equal(deleted, []string{orphanService}) {
+		t.Fatalf("deleted services = %v, want only %q", deleted, orphanService)
+	}
+	if hostChecks[orphanService] != 1 {
+		t.Errorf("orphan host checks = %d, want 1", hostChecks[orphanService])
+	}
+	if hostChecks[advertisedService] != 1 {
+		t.Errorf("advertised service host checks = %d, want 1", hostChecks[advertisedService])
+	}
+}
