@@ -34,10 +34,11 @@
       "description": "Multi-host monitoring and contextual alerting for Docker services exposed by DockTail through Tailscale.",
       "url": "https://docktail.org/cloud/",
       "offers": {
-        "@type": "Offer",
-        "price": "0",
+        "@type": "AggregateOffer",
+        "lowPrice": "5",
+        "highPrice": "29",
         "priceCurrency": "USD",
-        "description": "Monitor one host free"
+        "offerCount": 2
       },
       "isRelatedTo": {
         "@type": "SoftwareApplication",
@@ -127,14 +128,14 @@
             <div class="flex flex-wrap items-center gap-3 mb-5">
               <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=cloud_hero"
                  class="inline-flex items-center px-4 py-2 text-sm tracking-wide bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors">
-                Start free · 1 host
+                Get started
               </a>
               <a href="#how-it-knows"
                  class="inline-flex items-center px-4 py-2 text-sm tracking-wide bg-white text-gray-700 border border-gray-200 rounded hover:border-gray-300 hover:bg-gray-50 transition-colors">
                 See how it knows
               </a>
             </div>
-            <p class="text-xs text-gray-400">No credit card · same DockTail agent · one environment variable</p>
+            <p class="text-xs text-gray-400">Same DockTail agent · one environment variable · no second binary</p>
           </div>
 
           <!-- Product incident visual -->
@@ -388,7 +389,7 @@
         <div class="max-w-2xl mb-10">
           <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">Paid plans</p>
           <h2 id="pricing-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">Plans that grow with your fleet.</h2>
-          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">Start with one monitored host free. Choose a flat plan when your fleet grows — services are not metered.</p>
+          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">Flat pricing by host count. Services are not metered — a host reports every service it publishes.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -398,7 +399,7 @@
               <p class="mt-1 text-xs text-gray-500">A few machines you care about.</p>
             </div>
             <div class="mb-1"><span class="text-3xl font-bold tracking-tight text-gray-900">$5</span><span class="text-sm text-gray-400"> / month</span></div>
-            <div class="text-xs text-gray-400 mb-6">or $50 billed yearly</div>
+            <div class="text-xs text-gray-400 mb-6">or $36 billed yearly</div>
             <ul class="space-y-3 text-sm text-gray-600 mb-7">
               <li class="flex gap-2"><span class="text-gray-400">✓</span> Up to 3 hosts</li>
               <li class="flex gap-2"><span class="text-gray-400">✓</span> 30-day check history</li>
@@ -451,11 +452,11 @@
     <section aria-labelledby="cta-title">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
         <div class="rounded-lg border border-gray-800 bg-gray-900 px-6 py-10 sm:px-10 sm:py-12 text-center">
-          <div class="inline-flex items-center gap-2 text-[11px] uppercase tracking-wider text-gray-500 mb-4"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> No card required</div>
-          <h2 id="cta-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-3">Monitor one host for free.</h2>
-          <p class="max-w-xl mx-auto text-sm text-gray-400 leading-relaxed mb-7">One host, free, no time limit — its services, incidents, and one alert channel included. Upgrade when you outgrow it.</p>
+          <div class="inline-flex items-center gap-2 text-[11px] uppercase tracking-wider text-gray-500 mb-4"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> One environment variable</div>
+          <h2 id="cta-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-3">Start monitoring your fleet.</h2>
+          <p class="max-w-xl mx-auto text-sm text-gray-400 leading-relaxed mb-7">Set <code class="text-gray-300">DOCKTAIL_CLOUD_KEY</code> on the DockTail agent you already run. Every host and service shows up in the dashboard — no second binary, nothing dialing in.</p>
           <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=final_cta"
-             class="inline-flex items-center rounded bg-white px-4 py-2 text-sm text-gray-900 hover:bg-gray-100 transition-colors">Start monitoring · 1 host free</a>
+             class="inline-flex items-center rounded bg-white px-4 py-2 text-sm text-gray-900 hover:bg-gray-100 transition-colors">Open DockTail Cloud</a>
         </div>
       </div>
     </section>

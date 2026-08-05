@@ -2,7 +2,7 @@
 
 DockTail Cloud is optional, opt-in monitoring for DockTail-managed services across one or more hosts. It is a hosted dashboard that watches what DockTail exposes and tells you *why* something is unreachable.
 
-[Explore DockTail Cloud](https://docktail.org/cloud/) or [open the dashboard](https://cloud.docktail.org/login). One host is free with no time limit.
+[Explore DockTail Cloud](https://docktail.org/cloud/) or [open the dashboard](https://cloud.docktail.org/login).
 
 ### What You Get
 
@@ -36,6 +36,12 @@ services:
 ```
 
 With no key set, no connection is opened and DockTail runs exactly as before.
+
+If Cloud marks a host as unmonitored (for example, the host sits past the
+workspace's host cap), the agent keeps the connection open with heartbeats and
+occasional catalog snapshots and pauses checks, Docker events, metrics, tailnet
+state, and log excerpts. Cloud pushes an updated configuration over the same
+connection when that changes; the agent does not need a restart.
 
 ### Environment Variables
 
