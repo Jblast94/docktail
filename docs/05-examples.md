@@ -123,6 +123,8 @@ networks:
 
 ### Legacy Published-Port Mode
 
+Use published host ports when you cannot proxy to the container IP. That includes older setups and [rootless Docker](02-installation.md#rootless-docker) with host Tailscale, where `tailscaled` often cannot reach container IPs.
+
 ```yaml
 services:
   app:

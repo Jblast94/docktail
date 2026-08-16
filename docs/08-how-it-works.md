@@ -36,7 +36,7 @@ Tailnet clients access container services
 
 Direct mode is the default. DockTail reaches containers through their Docker network IPs, so application containers do not need published host ports.
 
-When `docktail.service.direct=false`, DockTail uses Docker published port bindings instead. In that mode, the target port must be published to the host.
+When `docktail.service.direct=false`, DockTail uses Docker published port bindings instead. In that mode, the target port must be published to the host. This is also the reliable path when host `tailscaled` cannot reach container IPs, which is common with [rootless Docker](02-installation.md#rootless-docker).
 
 TCP forwards hide the tailnet client address by default: the backend sees tailscaled. Set `docktail.service.proxy-protocol` to `1` or `2` so Tailscale prepends a PROXY protocol header. The backend must accept that header; HTTP/HTTPS services cannot use it.
 
