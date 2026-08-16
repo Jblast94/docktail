@@ -7,7 +7,7 @@ DockTail Cloud is optional, opt-in monitoring for DockTail-managed services acro
 ### What You Get
 
 - **One view of every host and service.** The full catalog of DockTail-managed services, plus a read-only inventory of the host's other containers, with health history.
-- **The useful distinction.** A plain uptime check stops at "down." Cloud already has the Docker and Tailscale context, so it separates a *container* problem (exit code, OOM kill, restart loop) from an *exposure* problem (the container answers locally, but its Tailscale service isn't published) from a *host* problem (the box stopped sending heartbeats).
+- **The useful distinction.** A plain uptime check stops at "down." Cloud already has the Docker and Tailscale context, so it separates a *container* problem (exit code, Docker OOM event, restart loop) from an *exposure* problem (the container answers locally, but its Tailscale service isn't published) from a *host* problem (the box stopped sending heartbeats).
 - **Incidents with the evidence attached.** Docker failure events and a bounded log tail captured at the moment of failure, so you start from the reason instead of from a graph.
 - **Alerts and recoveries.** Notification when a service breaks and when it comes back — including hosts that drop off entirely, since detection runs in Cloud rather than on the box.
 

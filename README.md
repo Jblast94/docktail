@@ -124,9 +124,9 @@ labels:
 Once you run DockTail on more than one machine, "is it still up?" gets tedious. [DockTail Cloud](https://docktail.org/cloud/) is a hosted dashboard for that — and because it already has the Docker and Tailscale context, it tells you *which* kind of broken you're looking at:
 
 ```text
-● down · exit 137 · likely OOM        →  the container failed
+● down · OOM-killed                   →  Docker reported an OOM kill
 ● local up · tailnet not served       →  the app is fine, the exposure isn't
-● host offline · heartbeat missing    →  the whole box went away
+● host offline · heartbeat missing    →  the box stopped reporting
 ```
 
 It rides along with the agent you already run — no second binary. Set one environment variable and the same container starts reporting:
