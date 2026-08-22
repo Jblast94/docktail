@@ -55,6 +55,7 @@
     defer
   ></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/assets/cloud-coverage.js" defer></script>
   <style>
     @keyframes fadeInUp {
       from { opacity: 0; transform: translateY(8px); }
@@ -172,6 +173,17 @@
       top: 50%;
       transform: translateY(-50%);
     }
+
+    .grid-fade {
+      background-image:
+        linear-gradient(to right, rgba(229, 231, 235, 0.6) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(229, 231, 235, 0.6) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(to bottom, black, transparent 88%);
+      -webkit-mask-image: linear-gradient(to bottom, black, transparent 88%);
+    }
+
+    cloud-coverage:not(:defined) { display: block; min-height: 27rem; }
 
     @media (prefers-reduced-motion: reduce) {
       .anim-line, .anim-glow, .anim-panel {
@@ -472,8 +484,9 @@
   </section>
 
   <!-- DockTail Cloud -->
-  <section aria-labelledby="cloud-title" class="border-t border-gray-200 bg-white">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
+  <section aria-labelledby="cloud-title" class="relative overflow-hidden border-t border-gray-200 bg-white">
+    <div class="grid-fade absolute inset-0 pointer-events-none" aria-hidden="true"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
       <div class="grid grid-cols-1 lg:grid-cols-[0.82fr_1.18fr] gap-10 lg:gap-14 items-center">
         <div>
           <div class="text-xs uppercase tracking-wider text-gray-500 mb-4">
@@ -511,62 +524,14 @@
           </div>
         </div>
 
-        <!-- Compact incident preview -->
-        <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden shadow-sm text-left">
-          <div class="h-10 px-4 flex items-center justify-between border-b border-white/10">
-            <div class="flex items-center gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
-              <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
-              <span class="w-2.5 h-2.5 rounded-full bg-green-400"></span>
-            </div>
-            <span class="text-[10px] uppercase tracking-wider text-gray-500">incident / grafana</span>
-          </div>
-          <div class="p-5 sm:p-6">
-            <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
-              <div>
-                <div class="flex items-center gap-2 mb-1">
-                  <span class="inline-flex items-center gap-1.5 rounded border border-red-400/25 bg-red-400/10 px-2 py-0.5 text-[11px] text-red-300">
-                    <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> open
-                  </span>
-                  <span class="text-[11px] text-gray-500">container</span>
-                </div>
-                <h3 class="text-sm font-semibold text-white">grafana is down</h3>
-              </div>
-              <span class="text-xs text-gray-500">12s ago</span>
-            </div>
-
-            <div class="rounded border border-white/10 bg-white/[0.03] p-3 mb-4">
-              <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5">Why</div>
-              <p class="text-xs sm:text-sm text-gray-300 leading-relaxed">
-                OOM-killed by Docker. Exit <span class="text-amber-300">137</span> (SIGKILL). The Tailscale service is still published.
-              </p>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
-              <div class="rounded border border-red-400/20 bg-red-400/[0.06] p-3">
-                <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-2">local</div>
-                <div class="flex items-center gap-1.5 text-xs text-red-300"><span>●</span> down</div>
-                <div class="mt-1 text-[10px] text-gray-500">agent → container</div>
-              </div>
-              <div class="rounded border border-green-400/20 bg-green-400/[0.06] p-3">
-                <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-2">tailnet</div>
-                <div class="flex items-center gap-1.5 text-xs text-green-300"><span>●</span> published</div>
-                <div class="mt-1 text-[10px] text-gray-500">tailscale serve</div>
-              </div>
-              <div class="rounded border border-white/10 bg-white/[0.02] p-3">
-                <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-2">docker</div>
-                <div class="flex items-center gap-1.5 text-xs text-amber-300"><span>●</span> oom</div>
-                <div class="mt-1 text-[10px] text-gray-500">docker event</div>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/10 pt-4 text-[11px] text-gray-500">
-              <span><span class="text-gray-300">exit</span> 137 · SIGKILL</span>
-              <span><span class="text-gray-300">event</span> oom</span>
-              <span><span class="text-gray-300">logs</span> 40 lines captured</span>
-            </div>
-          </div>
-        </div>
+        <!-- Coverage diagram (shared with /cloud) -->
+        <cloud-coverage variant="full">
+          <noscript>
+            DockTail Cloud watches every hop of a published service — host heartbeat and vitals,
+            container Docker events, local reachability, and Tailscale control-plane exposure —
+            across every host in your fleet.
+          </noscript>
+        </cloud-coverage>
       </div>
     </div>
   </section>
