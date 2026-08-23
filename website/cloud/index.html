@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DockTail Cloud — Know When Your Services Break and Why</title>
-  <meta name="description" content="Multi-host monitoring for DockTail services. Combine Docker failure context with Tailscale serve state, incident history, and alerts from outside the host.">
+  <meta name="description" content="Multi-host monitoring for DockTail services. Monitors derive themselves from the Docker labels you already wrote. Docker failure context plus Tailscale control-plane state, incident evidence, and host vitals.">
   <meta property="og:title" content="DockTail Cloud — Know What Broke">
-  <meta property="og:description" content="Tailscale-native monitoring for every DockTail host and service, with Docker context and alerts that explain why.">
+  <meta property="og:description" content="Zero-config monitoring for every DockTail host and service, with Docker context and alerts that explain why.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://docktail.org/cloud/">
   <meta property="og:image" content="https://docktail.org/assets/og-image.jpeg">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="DockTail Cloud — Know What Broke">
-  <meta name="twitter:description" content="Tailscale-native monitoring for every DockTail host and service, with Docker context and alerts that explain why.">
+  <meta name="twitter:description" content="Zero-config monitoring for every DockTail host and service, with Docker context and alerts that explain why.">
   <meta name="twitter:image" content="https://docktail.org/assets/og-image.jpeg">
   <meta name="author" content="marvinvr">
   <meta name="keywords" content="docker monitoring, tailscale monitoring, docktail cloud, container alerts, service monitoring, homelab monitoring">
@@ -156,109 +156,357 @@
       </div>
     </section>
 
-    <!-- How it knows -->
-    <section id="how-it-knows" aria-labelledby="how-title" class="border-b border-gray-200">
+    <!-- Zero config -->
+    <section aria-labelledby="config-title" class="border-b border-gray-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
         <div class="max-w-2xl mb-10">
-          <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">The useful distinction</p>
-          <h2 id="how-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">Not every outage is the same outage.</h2>
-          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">A plain uptime check stops at “down.” Cloud already has the Docker and Tailscale context — so it narrows the cause before you open a terminal.</p>
+          <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">No monitors to define</p>
+          <h2 id="config-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">You already wrote the config.</h2>
+          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">Every <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs text-gray-700">docktail.*</code> label you've already written is a monitor definition. Cloud never asks you for a URL, a port, or an interval — the target is read from Docker, on the host, on every pass.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <article class="rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
-            <div class="flex items-center justify-between mb-5">
-              <span class="inline-flex items-center gap-1.5 text-xs text-red-700"><span class="w-2 h-2 rounded-full bg-red-400"></span> Container problem</span>
-              <span class="text-[10px] text-gray-400">local down</span>
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 lg:gap-6 items-center">
+          <!-- What you wrote -->
+          <div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+            <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2.5">
+              <span class="text-[10px] uppercase tracking-wider text-gray-400">What you wrote</span>
+              <span class="text-[10px] text-gray-400">docker-compose.yml</span>
             </div>
-            <h3 class="text-sm font-semibold text-gray-900 mb-2">The app itself failed.</h3>
-            <p class="text-sm text-gray-500 leading-relaxed mb-5">Exit codes, Docker OOM events, restart loops, health changes, and the log tail captured at failure.</p>
-            <div class="rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-red-300">● down</span> · OOM-killed</div>
-          </article>
+            <div class="bg-gray-900">
+              <pre class="overflow-x-auto p-4 text-xs leading-relaxed"><code><span class="text-blue-400">grafana</span><span class="text-gray-300">:</span>
+  <span class="text-blue-400">image</span><span class="text-gray-300">: </span><span class="text-gray-400">grafana/grafana:11.3.0</span>
+  <span class="text-blue-400">labels</span><span class="text-gray-300">:</span>
+    <span class="text-gray-300">- </span><span class="text-amber-300">docktail.service.enable=true</span>
+    <span class="text-gray-300">- </span><span class="text-amber-300">docktail.service.name=grafana</span>
+    <span class="text-gray-300">- </span><span class="text-amber-300">docktail.service.port=3000</span></code></pre>
+            </div>
+          </div>
 
-          <article class="rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
-            <div class="flex items-center justify-between mb-5">
-              <span class="inline-flex items-center gap-1.5 text-xs text-amber-700"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Exposure problem</span>
-              <span class="text-[10px] text-gray-400">local up</span>
-            </div>
-            <h3 class="text-sm font-semibold text-gray-900 mb-2">The app's up — but unreachable.</h3>
-            <p class="text-sm text-gray-500 leading-relaxed mb-5">The container answers locally, but its Tailscale service isn't published. Fix exposure, don't restart a healthy app.</p>
-            <div class="rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-green-300">● local up</span> · <span class="text-amber-300">tailnet not served</span></div>
-          </article>
+          <!-- Derivation arrow -->
+          <div class="flex items-center justify-center text-gray-300" aria-hidden="true">
+            <svg class="hidden lg:block h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h15"/><path d="m13 6 6 6-6 6"/></svg>
+            <svg class="lg:hidden h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 4v15"/><path d="m6 13 6 6 6-6"/></svg>
+          </div>
 
-          <article class="rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
-            <div class="flex items-center justify-between mb-5">
-              <span class="inline-flex items-center gap-1.5 text-xs text-red-700"><span class="w-2 h-2 rounded-full bg-red-400"></span> Host problem</span>
-              <span class="text-[10px] text-gray-400">no heartbeat</span>
+          <!-- What Cloud watches -->
+          <div class="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
+            <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2.5">
+              <span class="text-[10px] uppercase tracking-wider text-gray-400">What Cloud watches</span>
+              <span class="inline-flex items-center gap-1.5 text-[10px] text-gray-400"><span class="w-1.5 h-1.5 rounded-full bg-green-400 pulse-soft"></span> live</span>
             </div>
-            <h3 class="text-sm font-semibold text-gray-900 mb-2">The whole host disappeared.</h3>
-            <p class="text-sm text-gray-500 leading-relaxed mb-5">Detection runs in Cloud, not on the box — so a host that drops off still pages you, and logs its recovery when it's back.</p>
-            <div class="rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-red-300">● host offline</span> · heartbeat missing</div>
-          </article>
+            <div class="px-4 py-4">
+              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span class="text-sm text-gray-900">grafana</span>
+                <span class="text-[10px] text-gray-400">on prod-01</span>
+              </div>
+              <div class="mt-1 text-[11px] text-gray-400">grafana.tailnet.ts.net</div>
+              <dl class="mt-4 space-y-2 text-[11px]">
+                <div class="grid grid-cols-[4.5rem_1fr] gap-2">
+                  <dt class="text-gray-400">target</dt>
+                  <dd class="flex flex-wrap items-center gap-2 text-gray-700">172.18.0.4:3000 <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[9px] text-gray-500">from docker</span></dd>
+                </div>
+                <div class="grid grid-cols-[4.5rem_1fr] gap-2">
+                  <dt class="text-gray-400">check</dt>
+                  <dd class="text-gray-700">tcp · every 30s</dd>
+                </div>
+                <div class="grid grid-cols-[4.5rem_1fr] gap-2">
+                  <dt class="text-gray-400">vantages</dt>
+                  <dd class="text-gray-700">local · tailnet</dd>
+                </div>
+                <div class="grid grid-cols-[4.5rem_1fr] gap-2">
+                  <dt class="text-gray-400">project</dt>
+                  <dd class="text-gray-700">monitoring</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6 mt-10 pt-8 border-t border-gray-200">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Nothing to keep in sync</h3>
+            <p class="text-xs text-gray-500 leading-relaxed">Start a labeled container and it's watched on the next pass. Remove it and its monitor retires with it. No dashboard to prune.</p>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900 mb-1.5">New hosts bring their catalog</h3>
+            <p class="text-xs text-gray-500 leading-relaxed">Set the key on another machine and every service it publishes describes itself — FQDN, image, ports, compose project, Funnel exposure.</p>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Cloud cannot aim a probe</h3>
+            <p class="text-xs text-gray-500 leading-relaxed">Config picks the shape of a check — TCP or HTTP, a path, an expected status. The destination always comes from the agent's own Docker discovery.</p>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Fleet surface -->
-    <section aria-labelledby="fleet-title" class="border-b border-gray-200 bg-white">
+    <!-- How it knows -->
+    <section id="how-it-knows" aria-labelledby="how-title" class="border-b border-gray-200 bg-white">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-        <div class="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-10 lg:gap-16 items-center">
-          <div class="rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm order-2 lg:order-1">
-            <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+        <div class="max-w-2xl mb-10">
+          <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">The useful distinction</p>
+          <h2 id="how-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">Two vantages. One answer.</h2>
+          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">A plain uptime check has one opinion: down. Cloud probes the container from inside the host <em class="not-italic text-gray-700">and</em> asks the Tailscale control plane whether the service is actually published — then reads the two answers together.</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-[1.25rem_1fr_1fr] md:gap-x-3">
+          <div class="hidden md:block" aria-hidden="true"></div>
+          <div aria-hidden="true" class="hidden md:block pb-1 text-[10px] uppercase tracking-wider text-gray-400">Tailnet: served</div>
+          <div aria-hidden="true" class="hidden md:block pb-1 text-[10px] uppercase tracking-wider text-gray-400">Tailnet: not served</div>
+
+          <div aria-hidden="true" class="hidden md:flex items-center justify-center"><span class="[writing-mode:vertical-rl] [transform:rotate(180deg)] text-[10px] uppercase tracking-wider text-gray-400">Local: up</span></div>
+
+          <article class="flex flex-col rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+            <span class="sr-only">Local check up, tailnet serving.</span>
+            <span aria-hidden="true" class="md:hidden mb-3 inline-block rounded bg-gray-100 px-2 py-1 text-[10px] uppercase tracking-wider text-gray-600">Local up · tailnet served</span>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full bg-green-400"></span>
+              <h3 class="text-sm font-semibold text-gray-900">All clear</h3>
+            </div>
+            <p class="text-xs text-gray-500 leading-relaxed mb-5 grow">The container answers on its own Docker IP, and the control plane lists the service as advertised and approved. Latency is recorded either way, so a service that answers slowly is flagged as slow rather than quietly counted as fine.</p>
+            <div class="mt-auto rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-green-300">● up</span> · 8ms · approved</div>
+          </article>
+
+          <article class="flex flex-col rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+            <span class="sr-only">Local check up, tailnet not serving.</span>
+            <span aria-hidden="true" class="md:hidden mb-3 inline-block rounded bg-gray-100 px-2 py-1 text-[10px] uppercase tracking-wider text-gray-600">Local up · tailnet not served</span>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+              <h3 class="text-sm font-semibold text-gray-900">Exposure problem</h3>
+            </div>
+            <p class="text-xs text-gray-500 leading-relaxed mb-5 grow">The app is healthy and nobody can reach it. Tailscale is not publishing the service — it's waiting for approval in the admin console, this host never advertised it, or the definition is gone. Restarting the app fixes nothing.</p>
+            <div class="mt-auto rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-green-300">● local up</span> · <span class="text-amber-300">unapproved</span></div>
+          </article>
+
+          <div aria-hidden="true" class="hidden md:flex items-center justify-center"><span class="[writing-mode:vertical-rl] [transform:rotate(180deg)] text-[10px] uppercase tracking-wider text-gray-400">Local: down</span></div>
+
+          <article class="flex flex-col rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+            <span class="sr-only">Local check down, tailnet serving.</span>
+            <span aria-hidden="true" class="md:hidden mb-3 inline-block rounded bg-gray-100 px-2 py-1 text-[10px] uppercase tracking-wider text-gray-600">Local down · tailnet served</span>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full bg-red-400"></span>
+              <h3 class="text-sm font-semibold text-gray-900">Container problem</h3>
+            </div>
+            <p class="text-xs text-gray-500 leading-relaxed mb-5 grow">The service is still advertised and approved, so re-publishing it is wasted effort. The process behind it stopped answering — and the Docker event that killed it is already attached.</p>
+            <div class="mt-auto rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-red-300">● refused</span> · exit 137 · oom</div>
+          </article>
+
+          <article class="flex flex-col rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+            <span class="sr-only">Local check down, tailnet not serving.</span>
+            <span aria-hidden="true" class="md:hidden mb-3 inline-block rounded bg-gray-100 px-2 py-1 text-[10px] uppercase tracking-wider text-gray-600">Local down · tailnet not served</span>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full bg-red-400"></span>
+              <h3 class="text-sm font-semibold text-gray-900">Both at once</h3>
+            </div>
+            <p class="text-xs text-gray-500 leading-relaxed mb-5 grow">Nothing answers locally and the control plane doesn't list the service either. Usually a deploy that never came up, or a definition removed while its container was already down — there is nothing running to restart.</p>
+            <div class="mt-auto rounded bg-gray-900 px-3 py-2.5 text-[11px] text-gray-300"><span class="text-red-300">● local down</span> · <span class="text-red-300">not_advertised</span></div>
+          </article>
+        </div>
+
+        <!-- Silent host -->
+        <div class="mt-8 rounded-lg border border-gray-800 bg-gray-900 p-6 sm:p-8 text-white">
+          <div class="grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr] gap-8 lg:gap-14">
+            <div>
+              <p class="text-xs uppercase tracking-wider text-gray-500 mb-3">When a host says nothing at all</p>
+              <h3 class="text-lg sm:text-xl font-bold tracking-tight mb-3">A dead machine can't page you.</h3>
+              <p class="text-sm text-gray-400 leading-relaxed">Detection runs in Cloud, so it keeps working whether your machine does or not. Agents report their view of the tailnet every 30 seconds — when the heartbeats stop, Cloud already knows whether that device is still there.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 self-center">
+              <div class="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <span class="text-xs text-gray-100">Agent down</span>
+                </div>
+                <p class="text-[11px] leading-relaxed text-gray-500">Peers still see <span class="text-gray-300">prod-01</span> online in their netmap. The machine is fine — the DockTail process isn't.</p>
+              </div>
+              <div class="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="w-2 h-2 rounded-full bg-red-400"></span>
+                  <span class="text-xs text-gray-100">Host down</span>
+                </div>
+                <p class="text-[11px] leading-relaxed text-gray-500">No peer sees the device any more — last seen 4m ago. The machine itself is gone.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Incident anatomy -->
+    <section aria-labelledby="incident-title" class="border-b border-gray-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
+        <div class="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-10 lg:gap-14 items-start">
+
+          <!-- Copy -->
+          <div class="lg:order-2">
+            <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">Incidents</p>
+            <h2 id="incident-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">The alert already contains the answer.</h2>
+            <p class="text-sm sm:text-base text-gray-500 leading-relaxed mb-8">You don't get a red dot and a graph to interpret. You get the failure, the vantages that disagreed, and the last thing the container said before it died.</p>
+            <div class="space-y-6">
               <div>
-                <div class="text-xs font-semibold text-gray-900">Services</div>
-                <div class="mt-0.5 text-[10px] text-gray-400">Every DockTail service across your fleet</div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Evidence, not a graph</h3>
+                <p class="text-xs text-gray-500 leading-relaxed">Exit code, OOM kill, restart count, health transition — the Docker event that caused the outage, attached to the outage it caused.</p>
               </div>
-              <div class="rounded border border-gray-200 bg-white px-2.5 py-1 text-[10px] text-gray-400">Search services…</div>
-            </div>
-            <div class="grid grid-cols-[1.2fr_0.8fr_0.7fr] border-b border-gray-200 bg-gray-50 px-4 py-2 text-[9px] uppercase tracking-wider text-gray-400">
-              <span>Service</span><span>Host</span><span>Status</span>
-            </div>
-            <div class="divide-y divide-gray-100 text-[11px]">
-              <div class="grid grid-cols-[1.2fr_0.8fr_0.7fr] items-center px-4 py-3.5">
-                <div><div class="text-gray-800">grafana</div><div class="mt-0.5 truncate text-[9px] text-gray-400">grafana.tailnet.ts.net</div></div>
-                <span class="text-gray-500">prod-01</span>
-                <span class="inline-flex w-fit items-center gap-1.5 rounded border border-red-200 bg-red-50 px-2 py-0.5 text-red-700"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> down</span>
+              <div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Logs from the moment it broke</h3>
+                <p class="text-xs text-gray-500 leading-relaxed">Captured when the failure fires, not scraped minutes later from a container that has already restarted. Bearer tokens, passwords, API keys and private-key blocks are redacted on the host, then capped at 40 lines and 8 KiB. Opt-in per workspace or per service.</p>
               </div>
-              <div class="grid grid-cols-[1.2fr_0.8fr_0.7fr] items-center px-4 py-3.5">
-                <div><div class="text-gray-800">redis</div><div class="mt-0.5 truncate text-[9px] text-gray-400">redis.tailnet.ts.net:6379</div></div>
-                <span class="text-gray-500">db-01</span>
-                <span class="inline-flex w-fit items-center gap-1.5 rounded border border-green-200 bg-green-50 px-2 py-0.5 text-green-700"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> up</span>
-              </div>
-              <div class="grid grid-cols-[1.2fr_0.8fr_0.7fr] items-center px-4 py-3.5">
-                <div class="min-w-0"><div class="flex items-center gap-2 text-gray-800"><span>webhook</span><span class="rounded bg-amber-100 px-1.5 py-0.5 text-[8px] text-amber-700">⚡ public</span></div><div class="mt-0.5 truncate text-[9px] text-gray-400">webhook.tailnet.ts.net</div></div>
-                <span class="text-gray-500">edge-01</span>
-                <span class="inline-flex w-fit items-center gap-1.5 rounded border border-green-200 bg-green-50 px-2 py-0.5 text-green-700"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> up</span>
-              </div>
-              <div class="grid grid-cols-[1.2fr_0.8fr_0.7fr] items-center px-4 py-3.5">
-                <div><div class="text-gray-800">postgres</div><div class="mt-0.5 truncate text-[9px] text-gray-400">postgres.tailnet.ts.net:5432</div></div>
-                <span class="text-gray-500">db-01</span>
-                <span class="inline-flex w-fit items-center gap-1.5 rounded border border-green-200 bg-green-50 px-2 py-0.5 text-green-700"><span class="w-1.5 h-1.5 rounded-full bg-green-400"></span> up</span>
+              <div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Delivered where you already are</h3>
+                <p class="text-xs text-gray-500 leading-relaxed">Slack, Telegram, ntfy, webhook, email — recoveries included, so you know it's over without going to look.</p>
               </div>
             </div>
           </div>
 
-          <div class="order-1 lg:order-2">
-            <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">One operational view</p>
-            <h2 id="fleet-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">Your fleet, without the tab collection.</h2>
-            <p class="text-sm sm:text-base text-gray-500 leading-relaxed mb-8">Search every service and host from one workspace — then trace any alert to the incident evidence behind it.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+          <!-- Incident card -->
+          <div class="lg:order-1 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div class="flex items-start justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span class="w-2 h-2 shrink-0 rounded-full bg-red-400 pulse-soft"></span>
+                  <span class="text-xs font-semibold text-gray-900">grafana</span>
+                  <span class="text-[10px] text-gray-400">on prod-01</span>
+                </div>
+                <div class="mt-1 text-[10px] text-gray-400">incident #182 · opened 14:22:09</div>
+              </div>
+              <span class="shrink-0 rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] text-red-700">container problem</span>
+            </div>
+
+            <ol class="divide-y divide-gray-100 text-[10px] sm:text-[11px]">
+              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                <span class="text-gray-400">14:22:07</span><span class="text-gray-400">docker event</span>
+                <span class="text-gray-700">die · <span class="text-red-600">exit 137</span></span>
+              </li>
+              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                <span class="text-gray-400">14:22:07</span><span class="text-gray-400">docker event</span>
+                <span class="text-gray-700">oom · <span class="text-red-600">killed by docker</span></span>
+              </li>
+              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                <span class="text-gray-400">14:22:11</span><span class="text-gray-400">local check</span>
+                <span class="text-gray-700"><span class="text-red-600">refused</span> · 172.18.0.4:3000</span>
+              </li>
+              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                <span class="text-gray-400">14:22:11</span><span class="text-gray-400">tailnet</span>
+                <span class="text-gray-700"><span class="text-green-700">advertised · approved</span> — exposure is fine</span>
+              </li>
+              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                <span class="text-gray-400">14:22:12</span><span class="text-gray-400">alert</span>
+                <span class="text-gray-700">slack #ops · telegram</span>
+              </li>
+            </ol>
+
+            <div class="border-t border-gray-200">
+              <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 bg-gray-50 px-4 py-2">
+                <span class="text-[10px] uppercase tracking-wider text-gray-400">Log tail · captured at failure</span>
+                <span class="text-[10px] text-gray-400">40 lines · 8 KiB cap</span>
+              </div>
+              <pre class="overflow-x-auto bg-gray-900 px-4 py-3 text-[10px] leading-relaxed text-gray-400"><code>14:22:04 lvl=eror msg="query failed" ds=prometheus
+14:22:05 lvl=info msg="alerting refresh" auth=<span class="text-amber-300">[redacted]</span>
+14:22:06 fatal: runtime: out of memory
+14:22:06   goroutine stack exceeds 1000000000-byte limit</code></pre>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-gray-200 bg-green-50 px-4 py-3 text-[11px]">
+              <span class="w-2 h-2 shrink-0 rounded-full bg-green-400"></span>
+              <span class="text-green-800">14:26:40 · recovered</span>
+              <span class="text-green-700">confirmed after 2 consecutive checks</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Host vitals + fleet -->
+    <section aria-labelledby="fleet-title" class="border-b border-gray-200 bg-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
+        <div class="grid grid-cols-1 lg:grid-cols-[0.92fr_1.08fr] gap-10 lg:gap-14 items-center">
+          <div>
+            <p class="text-xs uppercase tracking-wider text-gray-400 mb-3">The whole machine</p>
+            <h2 id="fleet-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-4">And the rest of the box.</h2>
+            <p class="text-sm sm:text-base text-gray-500 leading-relaxed mb-8">Services aren't the only thing that goes wrong. Every host reports its own vitals over the same connection — CPU, memory, swap, load average, and temperature where the hardware exposes it.</p>
+            <div class="space-y-6">
               <div>
-                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Service catalog</h3>
-                <p class="text-xs text-gray-500 leading-relaxed">FQDN, image, compose project, ports, host, status, and Funnel exposure.</p>
+                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">No metrics stack</h3>
+                <p class="text-xs text-gray-500 leading-relaxed">No node_exporter, no Prometheus, no scrape config, no second dashboard. The agent reads <code class="bg-gray-100 px-1 py-0.5 rounded text-[10px] text-gray-600">/proc</code> and <code class="bg-gray-100 px-1 py-0.5 rounded text-[10px] text-gray-600">/sys</code> itself and sends the numbers down the connection it already holds.</p>
               </div>
               <div>
-                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Docker inventory</h3>
-                <p class="text-xs text-gray-500 leading-relaxed">Every other container on the host — with opt-in failure alerts for the ones you care about.</p>
+                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Every container, not just the published ones</h3>
+                <p class="text-xs text-gray-500 leading-relaxed">A read-only inventory of everything else running on the host — image, state, ports, CPU and memory — with opt-in failure alerts on the ones that matter to you.</p>
               </div>
-              <div>
-                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Quiet incident lifecycle</h3>
-                <p class="text-xs text-gray-500 leading-relaxed">Debounced opens, confirmed recoveries, flap suppression — no alert storms.</p>
+            </div>
+          </div>
+
+          <div>
+            <div class="mb-3 flex items-center justify-between text-[10px] text-gray-400">
+              <span class="uppercase tracking-wider">Fleet</span>
+              <span>3 hosts · 28 services · 35 containers</span>
+            </div>
+            <div class="space-y-3">
+
+              <div class="rounded-lg border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
+                <div class="mb-4 flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                    <span class="text-xs text-gray-900">prod-01</span>
+                  </div>
+                  <span class="text-[10px] text-gray-400">connected 14d 3h</span>
+                </div>
+                <div class="space-y-2.5">
+                  <div class="grid grid-cols-[2.2rem_1fr_5.5rem] items-center gap-3 text-[10px]">
+                    <span class="text-gray-400">cpu</span>
+                    <span class="h-1.5 rounded-full bg-gray-100 overflow-hidden"><span class="block h-full rounded-full bg-gray-400" style="width:34%"></span></span>
+                    <span class="text-right text-gray-500">34%</span>
+                  </div>
+                  <div class="grid grid-cols-[2.2rem_1fr_5.5rem] items-center gap-3 text-[10px]">
+                    <span class="text-gray-400">mem</span>
+                    <span class="h-1.5 rounded-full bg-gray-100 overflow-hidden"><span class="block h-full rounded-full bg-gray-400" style="width:38%"></span></span>
+                    <span class="text-right text-gray-500">6.1 / 16 GB</span>
+                  </div>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-100 pt-3 text-[10px] text-gray-400">
+                  <span>load 0.82 · 0.74 · 0.61</span>
+                  <span>61 °C</span>
+                  <span>12 services</span>
+                  <span>9 other containers</span>
+                </div>
               </div>
-              <div>
-                <h3 class="text-sm font-semibold text-gray-900 mb-1.5">Alerts where you work</h3>
-                <p class="text-xs text-gray-500 leading-relaxed">Slack, Telegram, ntfy, webhook, and email.</p>
+
+              <div class="rounded-lg border border-amber-200 bg-white p-4 sm:p-5 shadow-sm">
+                <div class="mb-4 flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span class="text-xs text-gray-900">db-01</span>
+                    <span class="shrink-0 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">under pressure</span>
+                  </div>
+                  <span class="text-[10px] text-gray-400">connected 62d 11h</span>
+                </div>
+                <div class="space-y-2.5">
+                  <div class="grid grid-cols-[2.2rem_1fr_5.5rem] items-center gap-3 text-[10px]">
+                    <span class="text-gray-400">cpu</span>
+                    <span class="h-1.5 rounded-full bg-gray-100 overflow-hidden"><span class="block h-full rounded-full bg-amber-400" style="width:81%"></span></span>
+                    <span class="text-right text-gray-500">81%</span>
+                  </div>
+                  <div class="grid grid-cols-[2.2rem_1fr_5.5rem] items-center gap-3 text-[10px]">
+                    <span class="text-gray-400">mem</span>
+                    <span class="h-1.5 rounded-full bg-gray-100 overflow-hidden"><span class="block h-full rounded-full bg-amber-400" style="width:92%"></span></span>
+                    <span class="text-right text-gray-500">29.4 / 32 GB</span>
+                  </div>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-100 pt-3 text-[10px] text-gray-400">
+                  <span>load 4.10 · 3.88 · 3.42</span>
+                  <span class="text-amber-700">79 °C</span>
+                  <span>6 services</span>
+                  <span>11 other containers</span>
+                </div>
               </div>
+
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 sm:px-5 py-3.5 text-[10px] text-gray-400">
+                <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-400"></span><span class="text-xs text-gray-500">edge-01</span></span>
+                <span>cpu 12%</span>
+                <span>mem 2.4 / 8 GB</span>
+                <span>10 services</span>
+                <span>15 other containers</span>
+              </div>
+
             </div>
           </div>
         </div>
@@ -310,6 +558,14 @@
                 <div>
                   <div class="text-sm text-gray-100">Logs stay under your control</div>
                   <p class="mt-1 text-xs leading-relaxed text-gray-500">Incident log capture is bounded and configurable for the whole workspace or individual services.</p>
+                </div>
+              </div>
+
+              <div class="flex gap-4">
+                <svg class="mt-0.5 h-5 w-5 shrink-0 text-green-300" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <div>
+                  <div class="text-sm text-gray-100">Your Tailscale quota stays yours</div>
+                  <p class="mt-1 text-xs leading-relaxed text-gray-500">Cloud asks exactly one credentialed host per tailnet, and every agent enforces its own 60-second floor no matter what Cloud requests.</p>
                 </div>
               </div>
             </div>
