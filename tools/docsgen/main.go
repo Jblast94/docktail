@@ -780,14 +780,26 @@ var docsTemplate = template.Must(template.New("docs").Parse(`<!DOCTYPE html>
           </div>
           <div class="mt-6 flex flex-col items-center gap-3">
             <span class="text-xs text-gray-400">AGPL v3 · built by <a href="https://marvinvr.ch" class="text-gray-500 hover:text-gray-700 transition-colors">marvinvr</a> · generated {{ .GeneratedAt }}</span>
-            <a
-              href="https://github.com/sponsors/marvinvr?o=esb"
-              class="inline-flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50"
-            >
-              <svg class="h-3.5 w-3.5 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m21 8.25c0-2.485-2.239-4.5-5-4.5-1.74 0-3.273.88-4.165 2.217A4.98 4.98 0 0 0 7.67 3.75c-2.761 0-5 2.015-5 4.5 0 7.22 9.165 12 9.165 12S21 15.47 21 8.25Z"></path>
+            <a href="https://tailscale.com/community/community-projects/docktail"
+               target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2.5 pl-2.5 pr-3.5 py-1.5 bg-gray-900 border border-white/10 rounded-lg hover:bg-gray-800 hover:border-white/20 transition-colors"
+               aria-label="Featured on Tailscale Community Projects">
+              <!-- Tailscale mark: solid = middle row + bottom-center, dim = rest -->
+              <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true">
+                <circle cx="3"  cy="3"  r="3" opacity="0.32"/>
+                <circle cx="12" cy="3"  r="3" opacity="0.32"/>
+                <circle cx="21" cy="3"  r="3" opacity="0.32"/>
+                <circle cx="3"  cy="12" r="3"/>
+                <circle cx="12" cy="12" r="3"/>
+                <circle cx="21" cy="12" r="3"/>
+                <circle cx="3"  cy="21" r="3" opacity="0.32"/>
+                <circle cx="12" cy="21" r="3"/>
+                <circle cx="21" cy="21" r="3" opacity="0.32"/>
               </svg>
-              <span>Sponsor</span>
+              <span class="flex flex-col leading-none text-left">
+                <span class="text-[9px] tracking-[0.18em] uppercase text-gray-400 font-semibold">Featured on</span>
+                <span class="mt-0.5 text-xs font-bold text-white tracking-tight">Tailscale Community Projects</span>
+              </span>
             </a>
           </div>
         </div>

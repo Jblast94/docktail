@@ -176,7 +176,7 @@
       '<p class="dtc-sr" id="dtc-sr-' + variant + '">Diagram: DockTail Cloud watches every hop of a published service — host, container, local reachability, and tailnet exposure — across every host in the fleet.</p>' +
 
       '<div class="dtc-head">' +
-        '<span class="dtc-head-title">Every host, every service, watched. Zero config.</span>' +
+        '<span class="dtc-head-title">Every host, every service, monitored. Zero config.</span>' +
       '</div>' +
 
       '<div class="dtc-hostbar"><b>prod-01</b><span>/</span><span>grafana</span>' +
