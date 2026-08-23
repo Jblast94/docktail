@@ -54,6 +54,7 @@
   ></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/assets/cloud-coverage.js" defer></script>
+  <script src="/assets/incident-evidence.js" defer></script>
   <style>
     html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
 
@@ -80,10 +81,33 @@
 
     cloud-coverage:not(:defined) { display: block; min-height: 27rem; }
 
+    /* Copy Evidence button — press bounce, icon swap, "Copied" tooltip. */
+    @keyframes pressPop {
+      0%   { transform: scale(1); }
+      35%  { transform: scale(0.955); }
+      70%  { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+    @keyframes tipIn {
+      from { opacity: 0; transform: translate(-50%, 4px) scale(0.96); }
+      to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    }
+    .copy-evidence.press { animation: pressPop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .copy-evidence .icon-check { display: none; }
+    .copy-evidence.is-copied .icon-check { display: block; }
+    .copy-evidence.is-copied .icon-agent { display: none; }
+    /* specificity beats the Tailwind hover: utilities on the button */
+    button.copy-evidence.is-copied,
+    button.copy-evidence.is-copied:hover { border-color: #86efac; background-color: #f0fdf4; color: #166534; }
+    .copy-tip { opacity: 0; visibility: hidden; transform: translate(-50%, 4px); }
+    .copy-tip.show { visibility: visible; animation: tipIn 0.18s ease-out forwards; }
+
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       .enter { animation: none; }
       .pulse-soft { animation: none; opacity: 1; }
+      .copy-evidence.press { animation: none; }
+      .copy-tip.show { animation: none; opacity: 1; transform: translate(-50%, 0); }
     }
   </style>
 </head>
@@ -165,14 +189,14 @@
           <p class="text-sm sm:text-base text-gray-500 leading-relaxed">Every <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs text-gray-700">docktail.*</code> label you've already written is a monitor definition. Cloud never asks you for a URL, a port, or an interval — the target is read from Docker, on the host, on every pass.</p>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 lg:gap-6 items-center">
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 lg:gap-6 items-stretch">
           <!-- What you wrote -->
-          <div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          <div class="flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden">
             <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2.5">
               <span class="text-[10px] uppercase tracking-wider text-gray-400">What you wrote</span>
               <span class="text-[10px] text-gray-400">docker-compose.yml</span>
             </div>
-            <div class="bg-gray-900">
+            <div class="grow bg-gray-900">
               <pre class="overflow-x-auto p-4 text-xs leading-relaxed"><code><span class="text-blue-400">grafana</span><span class="text-gray-300">:</span>
   <span class="text-blue-400">image</span><span class="text-gray-300">: </span><span class="text-gray-400">grafana/grafana:11.3.0</span>
   <span class="text-blue-400">labels</span><span class="text-gray-300">:</span>
@@ -189,12 +213,12 @@
           </div>
 
           <!-- What Cloud watches -->
-          <div class="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
+          <div class="flex flex-col rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
             <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2.5">
               <span class="text-[10px] uppercase tracking-wider text-gray-400">What Cloud watches</span>
               <span class="inline-flex items-center gap-1.5 text-[10px] text-gray-400"><span class="w-1.5 h-1.5 rounded-full bg-green-400 pulse-soft"></span> live</span>
             </div>
-            <div class="px-4 py-4">
+            <div class="grow px-4 py-4">
               <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <span class="text-sm text-gray-900">grafana</span>
                 <span class="text-[10px] text-gray-400">on prod-01</span>
@@ -358,57 +382,85 @@
           </div>
 
           <!-- Incident card -->
-          <div class="lg:order-1 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div class="flex items-start justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span class="w-2 h-2 shrink-0 rounded-full bg-red-400 pulse-soft"></span>
-                  <span class="text-xs font-semibold text-gray-900">grafana</span>
-                  <span class="text-[10px] text-gray-400">on prod-01</span>
+          <div class="lg:order-1">
+            <div class="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div class="flex items-start justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="w-2 h-2 shrink-0 rounded-full bg-red-400 pulse-soft"></span>
+                    <span class="text-xs font-semibold text-gray-900">grafana</span>
+                    <span class="text-[10px] text-gray-400">on prod-01</span>
+                  </div>
+                  <div class="mt-1 text-[10px] text-gray-400">incident #182 · opened 14:22:09</div>
                 </div>
-                <div class="mt-1 text-[10px] text-gray-400">incident #182 · opened 14:22:09</div>
+                <span class="shrink-0 rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] text-red-700">container problem</span>
               </div>
-              <span class="shrink-0 rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] text-red-700">container problem</span>
+
+              <ol class="divide-y divide-gray-100 text-[10px] sm:text-[11px]">
+                <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                  <span class="text-gray-400">14:22:07</span><span class="text-gray-400">docker event</span>
+                  <span class="text-gray-700">die · <span class="text-red-600">exit 137</span></span>
+                </li>
+                <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                  <span class="text-gray-400">14:22:07</span><span class="text-gray-400">docker event</span>
+                  <span class="text-gray-700">oom · <span class="text-red-600">killed by docker</span></span>
+                </li>
+                <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                  <span class="text-gray-400">14:22:11</span><span class="text-gray-400">local check</span>
+                  <span class="text-gray-700"><span class="text-red-600">refused</span> · 172.18.0.4:3000</span>
+                </li>
+                <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                  <span class="text-gray-400">14:22:11</span><span class="text-gray-400">tailnet</span>
+                  <span class="text-gray-700"><span class="text-green-700">advertised · approved</span> — exposure is fine</span>
+                </li>
+                <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
+                  <span class="text-gray-400">14:22:12</span><span class="text-gray-400">alert</span>
+                  <span class="text-gray-700">slack #ops · telegram</span>
+                </li>
+              </ol>
+
+              <div class="border-t border-gray-200">
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 bg-gray-50 px-4 py-2">
+                  <span class="text-[10px] uppercase tracking-wider text-gray-400">Log tail · captured at failure</span>
+                  <span class="text-[10px] text-gray-400">40 lines · 8 KiB cap</span>
+                </div>
+                <pre class="overflow-x-auto bg-gray-900 px-4 py-3 text-[10px] leading-relaxed text-gray-400"><code>14:22:04 lvl=eror msg="query failed" ds=prometheus
+  14:22:05 lvl=info msg="alerting refresh" auth=<span class="text-amber-300">[redacted]</span>
+  14:22:06 fatal: runtime: out of memory
+  14:22:06   goroutine stack exceeds 1000000000-byte limit</code></pre>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-gray-200 bg-green-50 px-4 py-3 text-[11px]">
+                <span class="w-2 h-2 shrink-0 rounded-full bg-green-400"></span>
+                <span class="text-green-800">14:26:40 · recovered</span>
+                <span class="text-green-700">confirmed after 2 consecutive checks</span>
+              </div>
             </div>
 
-            <ol class="divide-y divide-gray-100 text-[10px] sm:text-[11px]">
-              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
-                <span class="text-gray-400">14:22:07</span><span class="text-gray-400">docker event</span>
-                <span class="text-gray-700">die · <span class="text-red-600">exit 137</span></span>
-              </li>
-              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
-                <span class="text-gray-400">14:22:07</span><span class="text-gray-400">docker event</span>
-                <span class="text-gray-700">oom · <span class="text-red-600">killed by docker</span></span>
-              </li>
-              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
-                <span class="text-gray-400">14:22:11</span><span class="text-gray-400">local check</span>
-                <span class="text-gray-700"><span class="text-red-600">refused</span> · 172.18.0.4:3000</span>
-              </li>
-              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
-                <span class="text-gray-400">14:22:11</span><span class="text-gray-400">tailnet</span>
-                <span class="text-gray-700"><span class="text-green-700">advertised · approved</span> — exposure is fine</span>
-              </li>
-              <li class="grid grid-cols-[3.4rem_5rem_1fr] sm:grid-cols-[3.6rem_5.6rem_1fr] items-baseline gap-2 px-4 py-2.5">
-                <span class="text-gray-400">14:22:12</span><span class="text-gray-400">alert</span>
-                <span class="text-gray-700">slack #ops · telegram</span>
-              </li>
-            </ol>
-
-            <div class="border-t border-gray-200">
-              <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 bg-gray-50 px-4 py-2">
-                <span class="text-[10px] uppercase tracking-wider text-gray-400">Log tail · captured at failure</span>
-                <span class="text-[10px] text-gray-400">40 lines · 8 KiB cap</span>
+            <div class="mt-6 flex flex-col items-center">
+              <div class="relative inline-flex">
+                <button type="button" id="copy-evidence"
+                        class="copy-evidence inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400">
+                  <!-- robot head — the same mark the incident page uses -->
+                  <svg class="icon-agent w-4 h-4 text-gray-500" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                       stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M8 1.5v2"></path>
+                    <circle cx="8" cy="1.5" r=".75" fill="currentColor" stroke="none"></circle>
+                    <rect x="2.5" y="4" width="11" height="8.5" rx="2"></rect>
+                    <path d="M1 7v3M15 7v3"></path>
+                    <circle cx="6" cy="7.75" r=".9" fill="currentColor" stroke="none"></circle>
+                    <circle cx="10" cy="7.75" r=".9" fill="currentColor" stroke="none"></circle>
+                    <path d="M6 10.25h4"></path>
+                  </svg>
+                  <svg class="icon-check w-4 h-4 text-green-600" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                       stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 8.5l3.2 3.2L13 5"></path>
+                  </svg>
+                  <span>Copy Evidence for Agent</span>
+                </button>
+                <span id="copy-evidence-tip" role="status" aria-live="polite"
+                      class="copy-tip pointer-events-none absolute left-1/2 top-full z-10 mt-2 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-[11px] text-gray-100 shadow-lg"></span>
               </div>
-              <pre class="overflow-x-auto bg-gray-900 px-4 py-3 text-[10px] leading-relaxed text-gray-400"><code>14:22:04 lvl=eror msg="query failed" ds=prometheus
-14:22:05 lvl=info msg="alerting refresh" auth=<span class="text-amber-300">[redacted]</span>
-14:22:06 fatal: runtime: out of memory
-14:22:06   goroutine stack exceeds 1000000000-byte limit</code></pre>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-gray-200 bg-green-50 px-4 py-3 text-[11px]">
-              <span class="w-2 h-2 shrink-0 rounded-full bg-green-400"></span>
-              <span class="text-green-800">14:26:40 · recovered</span>
-              <span class="text-green-700">confirmed after 2 consecutive checks</span>
             </div>
           </div>
         </div>
@@ -603,7 +655,7 @@
               <li class="flex gap-2"><span class="text-gray-400">✓</span> Single operator</li>
             </ul>
             <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=pricing&amp;utm_campaign=homelab"
-               class="mt-auto inline-flex justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-colors">Get started</a>
+               class="mt-auto inline-flex justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-colors">Try free for 30 days</a>
           </article>
 
           <article class="relative flex flex-col rounded-lg border-2 border-gray-900 bg-white p-[23px] shadow-sm">
@@ -621,7 +673,7 @@
               <li class="flex gap-2"><span class="text-gray-400">✓</span> Team members and roles</li>
             </ul>
             <a href="https://cloud.docktail.org/login?utm_source=docktail_org&amp;utm_medium=pricing&amp;utm_campaign=team"
-               class="mt-auto inline-flex justify-center rounded bg-gray-900 px-3 py-2 text-sm text-white hover:bg-gray-800 transition-colors">Get started</a>
+               class="mt-auto inline-flex justify-center rounded bg-gray-900 px-3 py-2 text-sm text-white hover:bg-gray-800 transition-colors">Try free for 30 days</a>
           </article>
 
           <article class="relative flex flex-col rounded-lg border border-gray-200 bg-white p-6">
