@@ -11,20 +11,29 @@
 
 When changing user-facing behavior, labels, environment variables, setup steps, examples, networking behavior, Tailscale permissions, supported protocols, or cleanup/reconciliation behavior, update the documentation in the same change.
 
-The canonical documentation source is `docs/*.md`. Generated website documentation artifacts are build outputs and should not be committed as source-of-truth content.
+The canonical documentation source is `docs/*.md`, and it lives here on purpose:
+the documentation should be reviewable next to the AGPL code it describes.
 
 Keep these aligned:
 
 - `docs/*.md` for canonical human-facing documentation.
 - `README.md` for the short overview, quick start, common examples, and links only.
-- Generated website docs at `website/docs/index.html`.
-- Generated Markdown and agent files at `website/docs.md`, `website/llms.txt`, and `website/llms-full.txt`.
 
-After editing canonical docs, you may regenerate local ignored website artifacts with:
+`docs/*.md` is the *only* place this prose exists. The published site
+(docktail.org) is built from a **separate private repo**, `docktail-website`,
+which pins this repository as a git submodule and runs `tools/docsgen` at image
+build time to render `docs/index.html`, `docs.md`, `llms.txt`, `llms-full.txt`
+and `sitemap.xml`. Those are build outputs — never commit them here, and never
+copy documentation prose into that repo.
 
-```bash
-go run ./tools/docsgen
-```
+Because the submodule is pinned by commit, documentation changes merged here do
+not reach docktail.org until someone bumps the pin in `docktail-website`. That
+is deliberate: publishing is an explicit act, not a side effect of merging.
+
+`tools/docsgen` stays in this repo (the website repo consumes it through the
+submodule). To see how your markdown renders, `make docs-generate` writes to the
+gitignored `.docs-preview/`; for a full preview with styling and assets, use
+`make serve` in the `docktail-website` repo.
 
 When adding a new feature, include the relevant docs page update and at least one concise example if the feature changes configuration.
 

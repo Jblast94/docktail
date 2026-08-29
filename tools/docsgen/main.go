@@ -55,7 +55,7 @@ type pageData struct {
 
 func main() {
 	sourceDir := flag.String("source", "docs", "directory containing canonical markdown files")
-	websiteDir := flag.String("website", "website", "website output directory")
+	websiteDir := flag.String("website", ".docs-preview", "output directory for the generated docs (the docktail-website repo passes its own site directory)")
 	flag.Parse()
 
 	markdown, err := readMarkdown(*sourceDir)

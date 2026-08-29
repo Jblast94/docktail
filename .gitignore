@@ -99,12 +99,8 @@ go.work.sum
 .env
 .e2e-secrets/
 
-# Generated website documentation
-website/docs/
-website/docs.md
-website/llms.txt
-website/llms-full.txt
-website/sitemap.xml
+# Local docs render (the real site is built in the docktail-website repo)
+.docs-preview/
 
 # Editor/IDE
 # .idea/

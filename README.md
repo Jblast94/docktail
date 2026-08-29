@@ -163,7 +163,9 @@ Without the key the module is completely inert: no connection is opened and Dock
 - DockTail Cloud overview: https://docktail.org/cloud/
 - Optional Cloud agent setup: [`docs/06-cloud.md`](docs/06-cloud.md)
 
-The canonical documentation source lives in [`docs/`](docs/). Website docs are generated from those Markdown files.
+The canonical documentation source lives in [`docs/`](docs/). The site at
+docktail.org is built from a separate repository, which pins this one as a
+submodule and renders those Markdown files with `tools/docsgen` at build time.
 
 ## Build From Source
 

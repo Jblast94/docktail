@@ -1,4 +1,4 @@
-.PHONY: build run clean docker-build docker-push test fmt vet docs-generate website-docker-build
+.PHONY: build run clean docker-build docker-push test fmt vet docs-generate
 
 # Variables
 BINARY_NAME=docktail
@@ -22,13 +22,11 @@ clean:
 docker-build:
 	docker build --build-arg VERSION=$(VERSION) -t $(DOCKER_IMAGE):$(VERSION) .
 
-# Generate website documentation from docs/*.md
+# Render docs/*.md into ./.docs-preview for a local look at the output.
+# The published site is built in the docktail-website repo, which pins this
+# repo as a submodule and runs the same generator.
 docs-generate:
 	go run ./tools/docsgen
-
-# Build website image from the repository root context
-website-docker-build:
-	docker build -f website/Dockerfile .
 
 # Push Docker image
 docker-push: docker-build
