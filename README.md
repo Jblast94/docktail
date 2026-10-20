@@ -151,7 +151,7 @@ environment:
 
 Without the key the module is completely inert: no connection is opened and DockTail behaves exactly as before. The link is outbound-only and metadata-only — the protocol has no exec, deploy, or shell message types, which you can verify in [`cloud/`](cloud/).
 
-DockTail Cloud is a paid service ([plans and pricing](https://docktail.org/cloud/#pricing)); a new workspace can connect one host as an unmonitored preview before you choose a plan. [`docker-compose.cloud.yaml`](docker-compose.cloud.yaml) is a complete example.
+DockTail Cloud is a paid service ([plans and pricing](https://docktail.org/cloud/#pricing)); Homelab and Team start with a 30-day free trial. Your AI agent can investigate incidents through its [MCP server and API](https://docktail.org/cloud/agents/). [`docker-compose.cloud.yaml`](docker-compose.cloud.yaml) is a complete example.
 
 [Explore DockTail Cloud](https://docktail.org/cloud/) · [open the dashboard](https://cloud.docktail.org/login) · [agent setup](docs/06-cloud.md)
 

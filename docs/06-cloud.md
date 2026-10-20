@@ -4,7 +4,12 @@ DockTail Cloud is optional, opt-in monitoring for DockTail-managed services acro
 
 [Explore DockTail Cloud](https://docktail.org/cloud/) or [open the dashboard](https://cloud.docktail.org/login).
 
-DockTail Cloud is a paid service, priced by host count ([plans and pricing](https://docktail.org/cloud/#pricing)); the agent code that reports to it is the same open-source DockTail. Until you choose a plan, a new workspace can connect one host as a preview: it shows up online, but Cloud runs no checks and raises no incidents or alerts for it. A workspace's first subscription can come with an introductory offer, such as a free trial or a reduced first-months price; the dashboard shows which one applies when you choose a plan.
+DockTail Cloud is a paid service; the agent code that reports to it is the same open-source DockTail.
+
+- **Account.** You sign up at [cloud.docktail.org](https://cloud.docktail.org/login) yourself. An AI agent cannot create the account, the workspace or the subscription for you; once they exist, it can help with everything else.
+- **Plans.** Homelab, Team and Business, priced by the number of monitored hosts. Current prices and host limits are on [plans and pricing](https://docktail.org/cloud/#pricing).
+- **Trial.** Homelab and Team start with a 30-day free trial. It needs a card and turns into the paid plan when it ends unless you cancel. Business starts at its regular price.
+- **No plan, no hosts.** A workspace connects no host until it has a plan or a running trial; before that the dashboard shows demo data.
 
 ### What You Get
 
@@ -21,12 +26,14 @@ Before you start:
 
 - **Tailscale API credentials.** Configure `TAILSCALE_OAUTH_CLIENT_ID`/`TAILSCALE_OAUTH_CLIENT_SECRET` (or `TAILSCALE_API_KEY`) first, as in [Tailscale Admin Setup](03-tailscale-admin.md#tailscale-admin-setup). Cloud's [tailnet vantage](#tailnet-health) reads the control plane through them, and one credentialed host per tailnet is enough. With none, Cloud reports "no Tailscale credentials" instead of approval and advertisement state; everything else still works.
 - **A working DockTail.** The host is tagged, and its services already show up on the tailnet without Cloud.
-- **A plan, for monitoring.** You can connect the first host before choosing one; it stays an unmonitored preview until you do (see above).
-
 Then:
 
-1. Create a workspace in the DockTail Cloud dashboard and copy the workspace key (`dtc_...`).
-2. Set `DOCKTAIL_CLOUD_KEY` on the DockTail agent.
+1. Sign in at [cloud.docktail.org](https://cloud.docktail.org/login), creating your account if you do not have one.
+2. Create a workspace.
+3. Choose a plan, or start the 30-day trial on Homelab or Team.
+4. Copy the workspace key (`dtc_...`) the onboarding shows under **Connect your first host**. Later keys are created under [Settings → Agent keys](https://cloud.docktail.org/settings/agent-keys).
+5. Set `DOCKTAIL_CLOUD_KEY` on the DockTail agent and recreate the container (`docker compose up -d`). Do this within the key's enrollment window, one hour by default (see [Identity](#identity)).
+6. The host appears on [Hosts](https://cloud.docktail.org/hosts), and [`docktail health`](07-reference.md#health-check) reports `cloud connected`.
 
 That is the only configuration — the cloud endpoint is built into the agent. A complete Compose file with it is [`docker-compose.cloud.yaml`](https://github.com/marvinvr/docktail/blob/main/docker-compose.cloud.yaml).
 
@@ -61,7 +68,7 @@ occasional catalog snapshots and pauses checks, Docker events, metrics, tailnet
 state, tailnet-health answers, and log excerpts. Cloud pushes an updated configuration over the same
 connection when that changes; the agent does not need a restart.
 
-### Environment Variables
+### Cloud Environment Variables
 
 | Variable | Default | Description |
 | --- | --- | --- |
@@ -224,9 +231,45 @@ reporting stops.
 | `protocol_mismatch` | This DockTail image speaks a wire protocol Cloud no longer accepts. | Checks again about every 15 minutes for up to 24 hours, then stops. | Pull the latest DockTail image and recreate the container. |
 | `http_403` | Something between the host and Cloud (a proxy, firewall, or WAF) refused the connection. | Checks again about every 15 minutes for up to 24 hours, then stops. | Allow outbound WebSocket connections to Cloud. After 24 hours, also restart the container. |
 | `enrollment_closed` | The key's enrollment window closed before this host joined. | Retries every 30–60 seconds. | Reopen enrollment for the key at [cloud.docktail.org/settings/agent-keys](https://cloud.docktail.org/settings/agent-keys), or recreate the container with a new key. |
-| `over_cap` | The workspace has reached its host limit. | Retries every 30–60 seconds. | Upgrade the plan at [cloud.docktail.org/settings/billing](https://cloud.docktail.org/settings/billing) or remove an offline host. |
+| `over_cap` | The workspace has no plan yet, or has reached its plan's host limit. | Retries every 30–60 seconds. | Choose a plan or upgrade it at [cloud.docktail.org/settings/billing](https://cloud.docktail.org/settings/billing), or remove an offline host. The agent reconnects on its own once there is room. |
 
 A key cannot be changed while the container runs, so rotating keys always means
 setting the new `DOCKTAIL_CLOUD_KEY` and recreating the container. Network errors
 and temporary Cloud outages are not rejections: the agent reconnects on its own
 with backoff.
+
+### API And MCP Server
+
+DockTail Cloud has a REST API and a remote MCP server, so an AI agent (Claude Code, Cursor, Codex, VS Code, Claude Desktop) or a script can read the same hosts, services, incidents, Docker events and captured logs as the dashboard, and find the root cause of an incident. Overview: [docktail.org/cloud/agents](https://docktail.org/cloud/agents/).
+
+Both need a workspace with a plan or a running trial, and an API key that a person creates in Cloud:
+
+1. Open the **MCP** page ([cloud.docktail.org/mcp](https://cloud.docktail.org/mcp)) or the **API** page ([cloud.docktail.org/api-access](https://cloud.docktail.org/api-access)) and choose **Create key**.
+2. Pick a scope. `read` (the default) reaches every read endpoint and tool, which is enough to investigate any incident. `read_write` can also acknowledge and resolve incidents and start or stop maintenance windows.
+3. Copy the key (`dtk_...`). It is shown once.
+
+API keys (`dtk_...`) are separate from the workspace key (`dtc_...`) the DockTail agent uses; neither works in place of the other.
+
+**MCP server**
+
+- Endpoint: `https://cloud.docktail.org/api/mcp`, Streamable HTTP, stateless.
+- Auth: `Authorization: Bearer dtk_...`.
+- Claude Code: `claude mcp add --transport http docktail https://cloud.docktail.org/api/mcp --header "Authorization: Bearer dtk_..."`. The MCP page in Cloud shows the configuration for the other clients; Claude Desktop connects through the `mcp-remote` bridge.
+- Read tools: `get_workspace`, `list_hosts`, `get_host`, `list_services`, `get_service`, `list_incidents`, `get_incident`, `get_incident_logs`, `list_events`, `list_maintenance_windows`.
+- Write tools (`read_write` keys only): `acknowledge_incident`, `resolve_incident`, `start_maintenance`, `stop_maintenance`.
+- Start with `get_workspace`. Use write tools only when the user asks for that change.
+
+**REST API**
+
+- Base URL: `https://cloud.docktail.org/api/v1`, same bearer key.
+- OpenAPI 3.1 document: `https://cloud.docktail.org/api/v1/openapi.json` (no key needed).
+- Reads: `GET /workspace`, `/hosts`, `/hosts/{id}`, `/services`, `/services/{id}`, `/incidents`, `/incidents/{id}`, `/incidents/{id}/logs`, `/events`, `/maintenance`.
+- Writes (`read_write`): `POST /incidents/{id}/ack`, `/incidents/{id}/resolve`, `/maintenance/start`, `/maintenance/stop`.
+- Responses are camelCase JSON, request bodies snake_case. Errors are `{"error": "<sentence>"}`.
+
+```bash
+curl -H "Authorization: Bearer $DOCKTAIL_API_KEY" \
+  "https://cloud.docktail.org/api/v1/incidents?status=open"
+```
+
+API and MCP share one rate limit of 120 requests per key per minute. Keys are revoked on the same MCP and API pages; revoking one leaves the others working. Neither the API nor the MCP server can run anything on your hosts: they only read Cloud's data and, with `read_write`, change incident and maintenance state in Cloud. Writes are logged under the key's name in Settings → Activity.
