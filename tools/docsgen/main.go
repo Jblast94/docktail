@@ -67,6 +67,9 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	if err := checkAnchors(markdown, headings); err != nil {
+		fatal(err)
+	}
 
 	specs, err := readFileSpecs(*sourceDir)
 	if err != nil {
@@ -95,13 +98,13 @@ func main() {
 	if err := writeFile(filepath.Join(*websiteDir, "docs", "index.html"), renderTemplate(data)); err != nil {
 		fatal(err)
 	}
-	if err := writeFile(filepath.Join(*websiteDir, "docs.md"), generatedMarkdown(markdown)); err != nil {
+	if err := writeFile(filepath.Join(*websiteDir, "docs.md"), generatedMarkdown(absoluteDocLinks(markdown))); err != nil {
 		fatal(err)
 	}
 	if err := writeFile(filepath.Join(*websiteDir, "llms.txt"), renderLLMS(data)); err != nil {
 		fatal(err)
 	}
-	if err := writeFile(filepath.Join(*websiteDir, "llms-full.txt"), renderLLMSFull(markdown)); err != nil {
+	if err := writeFile(filepath.Join(*websiteDir, "llms-full.txt"), renderLLMSFull(absoluteDocLinks(markdown))); err != nil {
 		fatal(err)
 	}
 	if err := writeFile(filepath.Join(*websiteDir, "sitemap.xml"), renderSitemap(generatedAt)); err != nil {
@@ -119,6 +122,22 @@ func readMarkdown(sourceDir string) (string, error) {
 	}
 	sort.Strings(matches)
 
+	// A link to a whole file (NN-name.md, no hash) lands on its first heading.
+	firstIDs := map[string]string{}
+	for _, path := range matches {
+		body, err := os.ReadFile(path) //nolint:gosec // G304: path comes from globbing the docs source dir
+		if err != nil {
+			return "", err
+		}
+		hs, err := parseHeadings(bytes.TrimSpace(body))
+		if err != nil {
+			return "", err
+		}
+		if len(hs) > 0 {
+			firstIDs[filepath.Base(path)] = hs[0].ID
+		}
+	}
+
 	var out strings.Builder
 	for i, path := range matches {
 		body, err := os.ReadFile(path) //nolint:gosec // G304: path comes from globbing the docs source dir
@@ -131,7 +150,11 @@ func readMarkdown(sourceDir string) (string, error) {
 		// Source files use NN-name.md#anchor so GitHub can jump across
 		// pages. The generated site is one HTML page, so collapse those
 		// to in-page hashes.
-		out.Write(bytes.TrimSpace(rewriteDocFileLinks(body)))
+		rewritten, err := rewriteDocFileLinks(body, firstIDs)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", path, err)
+		}
+		out.Write(bytes.TrimSpace(rewritten))
 		out.WriteByte('\n')
 	}
 	return out.String(), nil
@@ -139,10 +162,49 @@ func readMarkdown(sourceDir string) (string, error) {
 
 // docFileLink matches a markdown link to another numbered docs file, with
 // an optional heading hash. The generated site concatenates those files.
-var docFileLink = regexp.MustCompile(`\]\(\d{2}-[a-z0-9-]+\.md(#[a-z0-9-]+)?\)`)
+var docFileLink = regexp.MustCompile(`\]\((\d{2}-[a-z0-9-]+\.md)(#[a-z0-9-]+)?\)`)
 
-func rewriteDocFileLinks(body []byte) []byte {
-	return docFileLink.ReplaceAll(body, []byte("]($1)"))
+func rewriteDocFileLinks(body []byte, firstIDs map[string]string) ([]byte, error) {
+	var missing error
+	out := docFileLink.ReplaceAllFunc(body, func(match []byte) []byte {
+		parts := docFileLink.FindSubmatch(match)
+		hash := string(parts[2])
+		if hash == "" {
+			id, ok := firstIDs[string(parts[1])]
+			if !ok {
+				missing = fmt.Errorf("link to unknown docs file %s", parts[1])
+				return match
+			}
+			hash = "#" + id
+		}
+		return []byte("](" + hash + ")")
+	})
+	return out, missing
+}
+
+// inPageLink matches a markdown link to a heading of the generated page.
+var inPageLink = regexp.MustCompile(`\]\(#([a-z0-9-]+)\)`)
+
+// checkAnchors fails the build on a link to a heading that does not exist,
+// which is also what a hash pointing at a duplicate heading's first copy
+// looks like to a reader: renaming one of two equal headings fixes both.
+func checkAnchors(markdown string, headings []heading) error {
+	ids := map[string]bool{}
+	for _, h := range headings {
+		ids[h.ID] = true
+	}
+	for _, m := range inPageLink.FindAllStringSubmatch(markdown, -1) {
+		if !ids[m[1]] {
+			return fmt.Errorf("docs link to missing heading #%s", m[1])
+		}
+	}
+	return nil
+}
+
+// absoluteDocLinks points in-page hashes at the rendered page, for the
+// Markdown and plain-text copies an agent reads outside it.
+func absoluteDocLinks(markdown string) string {
+	return inPageLink.ReplaceAllString(markdown, "](https://docktail.org/docs/#$1)")
 }
 
 func renderMarkdown(source []byte) (string, []heading, error) {
@@ -316,35 +378,56 @@ func renderTemplate(data pageData) string {
 	return out.String()
 }
 
+// renderLLMS is the /llms.txt index (https://llmstxt.org): a summary, then
+// links. Details live in llms-full.txt; this file stays short.
 func renderLLMS(data pageData) string {
 	var out strings.Builder
 	out.WriteString("# DockTail\n\n")
-	out.WriteString("DockTail automatically exposes Docker containers as Tailscale Services using label-based configuration.\n\n")
-	out.WriteString("## Primary URLs\n\n")
-	out.WriteString("- Homepage: https://docktail.org/\n")
-	out.WriteString("- Human documentation: https://docktail.org/docs/\n")
-	out.WriteString("- Markdown documentation: https://docktail.org/docs.md\n")
-	out.WriteString("- Full LLM documentation: https://docktail.org/llms-full.txt\n")
-	out.WriteString("- Source code: https://github.com/marvinvr/docktail\n")
-	out.WriteString("- Container image: ghcr.io/marvinvr/docktail:latest\n\n")
-	out.WriteString("## Documentation Sections\n\n")
-	for _, h := range data.Headings {
-		if h.Level > 3 || h.ID == "" {
+	out.WriteString("> DockTail is an open-source container that exposes Docker containers as native Tailscale Services, configured with `docktail.*` labels. DockTail Cloud is an optional paid service that monitors those hosts and services, explains why something is unreachable, and lets AI agents find the root cause of an incident over MCP or a REST API.\n\n")
+	out.WriteString("DockTail runs as one container next to your apps (`ghcr.io/marvinvr/docktail:latest`) and needs the Docker socket and a Tailscale socket. DockTail Cloud is opt-in through one environment variable, `DOCKTAIL_CLOUD_KEY`.\n\n")
+
+	out.WriteString("## Docs\n\n")
+	out.WriteString("- [Full documentation](https://docktail.org/llms-full.txt): every section below in one plain-text file\n")
+	out.WriteString("- [Documentation as Markdown](https://docktail.org/docs.md): the same content, for Markdown readers\n")
+	for _, sec := range data.Sections {
+		if sec.ID == "" {
 			continue
 		}
-		prefix := "-"
-		if h.Level == 3 {
-			prefix = "  -"
+		fmt.Fprintf(&out, "- [%s](https://docktail.org/docs/#%s)", sec.Text, sec.ID)
+		if len(sec.Children) > 0 {
+			names := make([]string, 0, len(sec.Children))
+			for _, c := range sec.Children {
+				names = append(names, c.Text)
+			}
+			fmt.Fprintf(&out, ": %s", strings.Join(names, ", "))
 		}
-		fmt.Fprintf(&out, "%s %s: https://docktail.org/docs/#%s\n", prefix, h.Text, h.ID)
+		out.WriteString("\n")
 	}
-	out.WriteString("\n## Agent Guidance\n\n")
-	out.WriteString("Read https://docktail.org/llms-full.txt when you need the complete documentation in one text document. Use https://docktail.org/docs.md when Markdown structure matters. Prefer the generated docs over README for complete configuration details.\n")
+
+	out.WriteString("\n## DockTail Cloud\n\n")
+	out.WriteString("- [DockTail Cloud](https://docktail.org/cloud.md): what it does, plans and the 30-day trial ([web page](https://docktail.org/cloud/))\n")
+	out.WriteString("- [MCP server and API](https://docktail.org/cloud/agents.md): connect an AI agent to find the root cause of incidents ([web page](https://docktail.org/cloud/agents/))\n")
+	out.WriteString("- [Setup](https://docktail.org/docs/#how-to-enable): account, workspace, plan, then `DOCKTAIL_CLOUD_KEY` on the agent\n")
+	out.WriteString("- [API and MCP reference](https://docktail.org/docs/#api-and-mcp-server): keys, scopes, endpoints and tools\n")
+	out.WriteString("- [Plans and pricing](https://docktail.org/cloud/#pricing)\n")
+	out.WriteString("- [OpenAPI document](https://cloud.docktail.org/api/v1/openapi.json)\n\n")
+
+	out.WriteString("## Agent Guidance\n\n")
+	out.WriteString("- The user signs up at https://cloud.docktail.org/login and creates the workspace and plan; an agent cannot. Homelab and Team start with a 30-day trial that needs a card; a workspace connects no host until it has a plan or a running trial.\n")
+	out.WriteString("- To connect a host, set `DOCKTAIL_CLOUD_KEY` (a `dtc_...` workspace key from Cloud) on the DockTail container and recreate it.\n")
+	out.WriteString("- To use the MCP server (`https://cloud.docktail.org/api/mcp`) or the REST API (`https://cloud.docktail.org/api/v1`), the user creates an API key (`dtk_...`) on the MCP or API page in Cloud and sends it as `Authorization: Bearer dtk_...`. A `read` key is enough to investigate; only `read_write` can acknowledge, resolve or start maintenance.\n")
+	out.WriteString("- Prefer https://docktail.org/llms-full.txt over the README for complete configuration details.\n\n")
+
+	out.WriteString("## Optional\n\n")
+	out.WriteString("- [Source code](https://github.com/marvinvr/docktail)\n")
+	out.WriteString("- [Releases](https://github.com/marvinvr/docktail/releases)\n")
+	out.WriteString("- [Security and data handling](https://docktail.org/security/)\n")
+	out.WriteString("- [Changelog](https://docktail.org/changelog/)\n")
 	return out.String()
 }
 
 func renderLLMSFull(markdown string) string {
-	return "# DockTail Full Documentation\n\nSource: https://docktail.org/docs/\n\n" + markdown
+	return "# DockTail Full Documentation\n\nSource: https://docktail.org/docs/ · Index: https://docktail.org/llms.txt · DockTail Cloud: https://docktail.org/cloud.md · MCP server and API: https://docktail.org/cloud/agents.md\n\n" + markdown
 }
 
 func renderSitemap(lastmod string) string {

@@ -118,7 +118,7 @@ Funnel notes:
 
 ### DockTail Cloud Labels
 
-With [DockTail Cloud](06-cloud.md) enabled, `docktail.cloud.*` labels declare how Cloud monitors a container, next to the rest of its configuration. They change nothing about what DockTail serves on your tailnet, and are ignored when Cloud is not enabled.
+With [DockTail Cloud](06-cloud.md#docktail-cloud) enabled, `docktail.cloud.*` labels declare how Cloud monitors a container, next to the rest of its configuration. They change nothing about what DockTail serves on your tailnet, and are ignored when Cloud is not enabled.
 
 | Label | Values | Description |
 | --- | --- | --- |
